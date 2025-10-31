@@ -1,0 +1,1 @@
+Balanceador de carga que utiliza Nginx, el archivo de configuración debe apuntar a ambos servidores frontend y las solicitudes deben ser realizadas hacia este balanceador
