@@ -1,4 +1,4 @@
-FROM mysql:8.0
+FROM mariadb:10.11
 
 ENV MYSQL_ROOT_PASSWORD=rootpassword
 ENV MYSQL_DATABASE=gestion_personal

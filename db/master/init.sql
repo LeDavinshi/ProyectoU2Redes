@@ -1,9 +1,13 @@
 -- scripts/01-init.sql
+SET PASSWORD FOR 'root'@'localhost' = PASSWORD('rootpassword');
 CREATE DATABASE IF NOT EXISTS gestion_personal;
 USE gestion_personal;
 
--- Crear usuario para replicación
-CREATE USER 'replicador'@'%' IDENTIFIED BY 'replica_password';
+-- Desactivar binlog durante toda la inicialización para no replicar DDL/seed
+SET SESSION sql_log_bin = 0;
+
+-- Crear usuario para replicación (no escribir en binlog)
+CREATE USER IF NOT EXISTS 'replicador'@'%' IDENTIFIED BY 'replica_password';
 GRANT REPLICATION SLAVE ON *.* TO 'replicador'@'%';
 FLUSH PRIVILEGES;
 
@@ -253,3 +257,6 @@ INSERT IGNORE INTO CargosCarrera (nombrecargo, grado, nivel, activo) VALUES
 ('Analista', 10, 1, TRUE),
 ('Profesional', 12, 2, TRUE),
 ('Jefe de Departamento', 14, 3, TRUE);
+
+-- Rehabilitar binlog al finalizar
+SET SESSION sql_log_bin = 1;
