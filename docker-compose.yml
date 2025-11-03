@@ -1,0 +1,24 @@
+version: "3.9"
+
+services:
+  frontend-admin:
+    build: ./frontend/frontendmain
+    container_name: frontend-admin
+    ports:
+      - "3000:80"
+    restart: unless-stopped
+    networks:
+      - app-net
+
+  frontend-funcionario:
+    build: ./frontend/frontendfuncionario
+    container_name: frontend-funcionario
+    ports:
+      - "3001:80"
+    restart: unless-stopped
+    networks:
+      - app-net
+
+networks:
+  app-net:
+    driver: bridge
