@@ -19,6 +19,92 @@ services:
     networks:
       - app-net
 
+  auth:
+    build: ./microservicios/auth
+    container_name: auth-service
+    ports:
+      - "4000:4000"
+    environment:
+      - NODE_ENV=production
+      - PORT=4000
+      - JWT_SECRET=${JWT_SECRET:-change-me}
+      - DB_HOST=${DB_HOST:-mysql-master}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER:-admin}
+      - DB_PASSWORD=${DB_PASSWORD:-admin123}
+      - DB_NAME=${DB_NAME:-gestion_personal}
+    restart: unless-stopped
+    networks:
+      - app-net
+      - mysql-network
+
+  mysql-master:
+    image: mariadb:10.11
+    container_name: mysql-master
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=gestion_personal
+      - MYSQL_USER=admin
+      - MYSQL_PASSWORD=admin123
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_master_data:/var/lib/mysql
+      - ./db/master/init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+      - ./db/master/setup-replication.sh:/docker-entrypoint-initdb.d/20-setup-replication.sh:ro
+      - ./db/master/my.cnf:/etc/mysql/conf.d/my.cnf:ro
+    networks:
+      - mysql-network
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p$$MYSQL_ROOT_PASSWORD"]
+      timeout: 30s
+      retries: 10
+      start_period: 60s
+
+  mysql-replica:
+    image: mariadb:10.11
+    container_name: mysql-replica
+    environment:
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=gestion_personal
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql_replica_data:/var/lib/mysql
+      - ./db/replica/setup-replica.sh:/docker-entrypoint-initdb.d/10-setup-replica.sh:ro
+      - ./db/replica/my-replica.cnf:/etc/mysql/conf.d/my-replica.cnf:ro
+    networks:
+      - mysql-network
+    depends_on:
+      mysql-master:
+        condition: service_healthy
+
+  documentacion:
+    build: ./microservicios/documentacion
+    container_name: documentacion-service
+    ports:
+      - "4100:4100"
+    environment:
+      - NODE_ENV=production
+      - PORT=4100
+      - DB_HOST=${DB_HOST:-mysql-master}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER:-admin}
+      - DB_PASSWORD=${DB_PASSWORD:-admin123}
+      - DB_NAME=${DB_NAME:-gestion_personal}
+      - DOCS_TABLE=${DOCS_TABLE:-documentos}
+    restart: unless-stopped
+    networks:
+      - app-net
+      - mysql-network
+
 networks:
   app-net:
     driver: bridge
+  mysql-network:
+    driver: bridge
+    internal: true
+
+volumes:
+  mysql_master_data:
+  mysql_replica_data:
