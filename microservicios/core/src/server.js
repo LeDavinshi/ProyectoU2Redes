@@ -153,6 +153,57 @@ app.get('/cargos', requireAuth, async (req, res) => {
   }
 });
 
+// CRUD CargosCarrera (admin)
+app.post('/cargos', requireAuth, requireRole('Administrador'), async (req, res) => {
+  try {
+    const { nombrecargo, grado, nivel, activo = true } = req.body || {};
+    if (!nombrecargo || grado === undefined || nivel === undefined) {
+      return res.status(400).json({ error: 'nombrecargo, grado y nivel son requeridos' });
+    }
+    const [result] = await pool.query(
+      'INSERT INTO CargosCarrera (nombrecargo, grado, nivel, activo) VALUES (?, ?, ?, ?)',
+      [nombrecargo, grado, nivel, activo ? 1 : 0]
+    );
+    return res.status(201).json({ id: result.insertId });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error creando cargo', detail: String(err) });
+  }
+});
+
+app.put('/cargos/:id', requireAuth, requireRole('Administrador'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nombrecargo, grado, nivel, activo } = req.body || {};
+    const fields = [];
+    const values = [];
+    if (nombrecargo !== undefined) { fields.push('nombrecargo = ?'); values.push(nombrecargo); }
+    if (grado !== undefined) { fields.push('grado = ?'); values.push(grado); }
+    if (nivel !== undefined) { fields.push('nivel = ?'); values.push(nivel); }
+    if (activo !== undefined) { fields.push('activo = ?'); values.push(activo ? 1 : 0); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' });
+    values.push(id);
+    const [result] = await pool.query(`UPDATE CargosCarrera SET ${fields.join(', ')} WHERE id = ?`, values);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Cargo no encontrado' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error actualizando cargo', detail: String(err) });
+  }
+});
+
+app.delete('/cargos/:id', requireAuth, requireRole('Administrador'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Evitar borrar si existe en HistorialCargos
+    const [[{ cnt }]] = await pool.query('SELECT COUNT(*) AS cnt FROM HistorialCargos WHERE cargoid = ?', [id]);
+    if (cnt > 0) return res.status(400).json({ error: 'No se puede eliminar cargo con historial asociado' });
+    const [result] = await pool.query('DELETE FROM CargosCarrera WHERE id = ?', [id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Cargo no encontrado' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error eliminando cargo', detail: String(err) });
+  }
+});
+
 app.get('/funcionarios', requireAuth, requireRole('Administrador'), async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit || '20', 10), 100);
@@ -421,6 +472,113 @@ app.get('/reportes/bienios.csv', requireAuth, requireRole('Administrador'), asyn
     return res.send(csv);
   } catch (err) {
     return res.status(500).json({ error: 'Error generando CSV de bienios', detail: String(err) });
+  }
+});
+
+app.put('/historialcargos/:id', requireAuth, requireRole('Administrador'), async (req, res) => {
+  const conn = await pool.getConnection();
+  try {
+    const { id } = req.params;
+    const { funcionarioid, cargoid, fechainicio, fechatermino, activo } = req.body || {};
+    await conn.beginTransaction();
+    if (activo === true && funcionarioid) {
+      await conn.query('UPDATE HistorialCargos SET activo = 0 WHERE funcionarioid = ? AND activo = 1 AND id <> ?', [funcionarioid, id]);
+    }
+    const fields = [];
+    const values = [];
+    if (funcionarioid !== undefined) { fields.push('funcionarioid = ?'); values.push(funcionarioid); }
+    if (cargoid !== undefined) { fields.push('cargoid = ?'); values.push(cargoid); }
+    if (fechainicio !== undefined) { fields.push('fechainicio = ?'); values.push(fechainicio); }
+    if (fechatermino !== undefined) { fields.push('fechatermino = ?'); values.push(fechatermino); }
+    if (activo !== undefined) { fields.push('activo = ?'); values.push(activo ? 1 : 0); }
+    if (fields.length === 0) { await conn.rollback(); return res.status(400).json({ error: 'No hay campos para actualizar' }); }
+    values.push(id);
+    const [result] = await conn.query(`UPDATE HistorialCargos SET ${fields.join(', ')} WHERE id = ?`, values);
+    if (result.affectedRows === 0) { await conn.rollback(); return res.status(404).json({ error: 'Registro no encontrado' }); }
+    await conn.commit();
+    return res.json({ ok: true });
+  } catch (err) {
+    try { await conn.rollback(); } catch {}
+    return res.status(500).json({ error: 'Error actualizando historial de cargo', detail: String(err) });
+  } finally {
+    conn.release();
+  }
+});
+
+app.delete('/historialcargos/:id', requireAuth, requireRole('Administrador'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [result] = await pool.query('DELETE FROM HistorialCargos WHERE id = ?', [id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Registro no encontrado' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error eliminando historial de cargo', detail: String(err) });
+  }
+});
+
+// --- Bienios (admin CRUD; lectura propia para funcionario) ---
+app.get('/bienios', requireAuth, async (req, res) => {
+  try {
+    const funcionarioId = parseInt(req.query.funcionarioId || '0', 10);
+    let targetId = funcionarioId;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      if (!ownId) return res.status(404).json({ error: 'Funcionario no encontrado para el usuario' });
+      targetId = ownId;
+    }
+    if (!targetId) return res.status(400).json({ error: 'funcionarioId es requerido (o use su propia sesión)' });
+    const [rows] = await pool.query(
+      'SELECT id, funcionarioid, fechainicio, fechatermino, cumplido, fechacumplimiento FROM Bienios WHERE funcionarioid = ? ORDER BY fechainicio DESC',
+      [targetId]
+    );
+    return res.json(rows);
+  } catch (err) {
+    return res.status(500).json({ error: 'Error listando bienios', detail: String(err) });
+  }
+});
+
+app.post('/bienios', requireAuth, requireRole('Administrador'), async (req, res) => {
+  try {
+    const { funcionarioid, fechainicio, fechatermino, cumplido = false, fechacumplimiento } = req.body || {};
+    if (!funcionarioid || !fechainicio || !fechatermino) return res.status(400).json({ error: 'funcionarioid, fechainicio, fechatermino requeridos' });
+    const [result] = await pool.query(
+      'INSERT INTO Bienios (funcionarioid, fechainicio, fechatermino, cumplido, fechacumplimiento) VALUES (?, ?, ?, ?, ?)',
+      [funcionarioid, fechainicio, fechatermino, cumplido ? 1 : 0, fechacumplimiento || null]
+    );
+    return res.status(201).json({ id: result.insertId });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error creando bienio', detail: String(err) });
+  }
+});
+
+app.put('/bienios/:id', requireAuth, requireRole('Administrador'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { fechainicio, fechatermino, cumplido, fechacumplimiento } = req.body || {};
+    const fields = [];
+    const values = [];
+    if (fechainicio !== undefined) { fields.push('fechainicio = ?'); values.push(fechainicio); }
+    if (fechatermino !== undefined) { fields.push('fechatermino = ?'); values.push(fechatermino); }
+    if (cumplido !== undefined) { fields.push('cumplido = ?'); values.push(cumplido ? 1 : 0); }
+    if (fechacumplimiento !== undefined) { fields.push('fechacumplimiento = ?'); values.push(fechacumplimiento); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' });
+    values.push(id);
+    const [result] = await pool.query(`UPDATE Bienios SET ${fields.join(', ')} WHERE id = ?`, values);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Bienio no encontrado' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error actualizando bienio', detail: String(err) });
+  }
+});
+
+app.delete('/bienios/:id', requireAuth, requireRole('Administrador'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [result] = await pool.query('DELETE FROM Bienios WHERE id = ?', [id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Bienio no encontrado' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error eliminando bienio', detail: String(err) });
   }
 });
 
