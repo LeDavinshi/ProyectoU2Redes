@@ -582,8 +582,707 @@ app.delete('/bienios/:id', requireAuth, requireRole('Administrador'), async (req
   }
 });
 
-app.listen(PORT, () => {
-  // eslint-disable-next-line no-console
-  console.log(`Core service listening on port ${PORT}`);
+async function getOwnerFuncionarioId(table, id) {
+  const [rows] = await pool.query(`SELECT funcionarioid FROM ${table} WHERE id = ? LIMIT 1`, [id]);
+  return rows && rows[0] ? rows[0].funcionarioid : null;
+}
+
+app.get('/estudios', requireAuth, async (req, res) => {
+  try {
+    const funcionarioId = parseInt(req.query.funcionarioId || '0', 10);
+    let targetId = funcionarioId;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      if (!ownId) return res.status(404).json({ error: 'Funcionario no encontrado para el usuario' });
+      targetId = ownId;
+    }
+    if (!targetId) return res.status(400).json({ error: 'funcionarioId es requerido (o use su propia sesión)' });
+    const [rows] = await pool.query(
+      'SELECT id, funcionarioid, tipoestudio, institucion, nombreestudio, fechainicio, fechatermino, fechatitulacion, docpdf FROM Estudios WHERE funcionarioid = ? ORDER BY fechainicio DESC',
+      [targetId]
+    );
+    return res.json(rows);
+  } catch (err) {
+    return res.status(500).json({ error: 'Error listando estudios', detail: String(err) });
+  }
 });
 
+app.post('/estudios', requireAuth, async (req, res) => {
+  try {
+    const { funcionarioid, tipoestudio, institucion, nombreestudio, fechainicio, fechatermino, fechatitulacion, docpdf } = req.body || {};
+    let targetId = funcionarioid;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      if (!ownId) return res.status(404).json({ error: 'Funcionario no encontrado para el usuario' });
+      if (targetId && targetId !== ownId) return res.status(403).json({ error: 'No puede crear para otro funcionario' });
+      targetId = ownId;
+    }
+    if (!targetId || !tipoestudio || !institucion || !nombreestudio || !fechainicio) {
+      return res.status(400).json({ error: 'Campos requeridos: funcionarioid, tipoestudio, institucion, nombreestudio, fechainicio' });
+    }
+    const [result] = await pool.query(
+      'INSERT INTO Estudios (funcionarioid, tipoestudio, institucion, nombreestudio, fechainicio, fechatermino, fechatitulacion, docpdf) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [targetId, tipoestudio, institucion, nombreestudio, fechainicio, fechatermino || null, fechatitulacion || null, docpdf || null]
+    );
+    return res.status(201).json({ id: result.insertId });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error creando estudio', detail: String(err) });
+  }
+});
+
+app.put('/estudios/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      const owner = await getOwnerFuncionarioId('Estudios', id);
+      if (!owner) return res.status(404).json({ error: 'Estudio no encontrado' });
+      if (owner !== ownId) return res.status(403).json({ error: 'No puede editar este estudio' });
+    }
+    const { tipoestudio, institucion, nombreestudio, fechainicio, fechatermino, fechatitulacion, docpdf } = req.body || {};
+    const fields = [];
+    const values = [];
+    if (tipoestudio !== undefined) { fields.push('tipoestudio = ?'); values.push(tipoestudio); }
+    if (institucion !== undefined) { fields.push('institucion = ?'); values.push(institucion); }
+    if (nombreestudio !== undefined) { fields.push('nombreestudio = ?'); values.push(nombreestudio); }
+    if (fechainicio !== undefined) { fields.push('fechainicio = ?'); values.push(fechainicio); }
+    if (fechatermino !== undefined) { fields.push('fechatermino = ?'); values.push(fechatermino); }
+    if (fechatitulacion !== undefined) { fields.push('fechatitulacion = ?'); values.push(fechatitulacion); }
+    if (docpdf !== undefined) { fields.push('docpdf = ?'); values.push(docpdf); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' });
+    values.push(id);
+    const [result] = await pool.query(`UPDATE Estudios SET ${fields.join(', ')} WHERE id = ?`, values);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Estudio no encontrado' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error actualizando estudio', detail: String(err) });
+  }
+});
+
+app.delete('/estudios/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      const owner = await getOwnerFuncionarioId('Estudios', id);
+      if (!owner) return res.status(404).json({ error: 'Estudio no encontrado' });
+      if (owner !== ownId) return res.status(403).json({ error: 'No puede eliminar este estudio' });
+    }
+    const [result] = await pool.query('DELETE FROM Estudios WHERE id = ?', [id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Estudio no encontrado' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error eliminando estudio', detail: String(err) });
+  }
+});
+
+app.get('/calificaciones', requireAuth, async (req, res) => {
+  try {
+    const funcionarioId = parseInt(req.query.funcionarioId || '0', 10);
+    let targetId = funcionarioId;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      if (!ownId) return res.status(404).json({ error: 'Funcionario no encontrado para el usuario' });
+      targetId = ownId;
+    }
+    if (!targetId) return res.status(400).json({ error: 'funcionarioId es requerido (o use su propia sesión)' });
+    const [rows] = await pool.query(
+      'SELECT id, funcionarioid, periodoevaluacion, puntaje, evaluador, fechaevaluacion, observaciones FROM Calificaciones WHERE funcionarioid = ? ORDER BY fechaevaluacion DESC',
+      [targetId]
+    );
+    return res.json(rows);
+  } catch (err) {
+    return res.status(500).json({ error: 'Error listando calificaciones', detail: String(err) });
+  }
+});
+
+app.post('/calificaciones', requireAuth, requireRole('Administrador'), async (req, res) => {
+  try {
+    const { funcionarioid, periodoevaluacion, puntaje, evaluador, fechaevaluacion, observaciones } = req.body || {};
+    if (!funcionarioid || !periodoevaluacion || puntaje === undefined || !evaluador || !fechaevaluacion) {
+      return res.status(400).json({ error: 'Campos requeridos: funcionarioid, periodoevaluacion, puntaje, evaluador, fechaevaluacion' });
+    }
+    const [result] = await pool.query(
+      'INSERT INTO Calificaciones (funcionarioid, periodoevaluacion, puntaje, evaluador, fechaevaluacion, observaciones) VALUES (?, ?, ?, ?, ?, ?)',
+      [funcionarioid, periodoevaluacion, puntaje, evaluador, fechaevaluacion, observaciones || null]
+    );
+    return res.status(201).json({ id: result.insertId });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error creando calificación', detail: String(err) });
+  }
+});
+
+app.put('/calificaciones/:id', requireAuth, requireRole('Administrador'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { periodoevaluacion, puntaje, evaluador, fechaevaluacion, observaciones } = req.body || {};
+    const fields = [];
+    const values = [];
+    if (periodoevaluacion !== undefined) { fields.push('periodoevaluacion = ?'); values.push(periodoevaluacion); }
+    if (puntaje !== undefined) { fields.push('puntaje = ?'); values.push(puntaje); }
+    if (evaluador !== undefined) { fields.push('evaluador = ?'); values.push(evaluador); }
+    if (fechaevaluacion !== undefined) { fields.push('fechaevaluacion = ?'); values.push(fechaevaluacion); }
+    if (observaciones !== undefined) { fields.push('observaciones = ?'); values.push(observaciones); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' });
+    values.push(id);
+    const [result] = await pool.query(`UPDATE Calificaciones SET ${fields.join(', ')} WHERE id = ?`, values);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Calificación no encontrada' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error actualizando calificación', detail: String(err) });
+  }
+});
+
+app.delete('/calificaciones/:id', requireAuth, requireRole('Administrador'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [result] = await pool.query('DELETE FROM Calificaciones WHERE id = ?', [id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Calificación no encontrada' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error eliminando calificación', detail: String(err) });
+  }
+});
+
+app.get('/anotaciones', requireAuth, async (req, res) => {
+  try {
+    const funcionarioId = parseInt(req.query.funcionarioId || '0', 10);
+    let targetId = funcionarioId;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      if (!ownId) return res.status(404).json({ error: 'Funcionario no encontrado para el usuario' });
+      targetId = ownId;
+    }
+    if (!targetId) return res.status(400).json({ error: 'funcionarioId es requerido (o use su propia sesión)' });
+    const [rows] = await pool.query(
+      'SELECT id, funcionarioid, tipoanotacion, descripcion, fechaanotacion, docreferencia FROM Anotaciones WHERE funcionarioid = ? ORDER BY fechaanotacion DESC',
+      [targetId]
+    );
+    return res.json(rows);
+  } catch (err) {
+    return res.status(500).json({ error: 'Error listando anotaciones', detail: String(err) });
+  }
+});
+
+app.post('/anotaciones', requireAuth, requireRole('Administrador'), async (req, res) => {
+  try {
+    const { funcionarioid, tipoanotacion, descripcion, fechaanotacion, docreferencia } = req.body || {};
+    if (!funcionarioid || !tipoanotacion || !descripcion || !fechaanotacion) {
+      return res.status(400).json({ error: 'Campos requeridos: funcionarioid, tipoanotacion, descripcion, fechaanotacion' });
+    }
+    const [result] = await pool.query(
+      'INSERT INTO Anotaciones (funcionarioid, tipoanotacion, descripcion, fechaanotacion, docreferencia) VALUES (?, ?, ?, ?, ?)',
+      [funcionarioid, tipoanotacion, descripcion, fechaanotacion, docreferencia || null]
+    );
+    return res.status(201).json({ id: result.insertId });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error creando anotación', detail: String(err) });
+  }
+});
+
+app.put('/anotaciones/:id', requireAuth, requireRole('Administrador'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { tipoanotacion, descripcion, fechaanotacion, docreferencia } = req.body || {};
+    const fields = [];
+    const values = [];
+    if (tipoanotacion !== undefined) { fields.push('tipoanotacion = ?'); values.push(tipoanotacion); }
+    if (descripcion !== undefined) { fields.push('descripcion = ?'); values.push(descripcion); }
+    if (fechaanotacion !== undefined) { fields.push('fechaanotacion = ?'); values.push(fechaanotacion); }
+    if (docreferencia !== undefined) { fields.push('docreferencia = ?'); values.push(docreferencia); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' });
+    values.push(id);
+    const [result] = await pool.query(`UPDATE Anotaciones SET ${fields.join(', ')} WHERE id = ?`, values);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Anotación no encontrada' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error actualizando anotación', detail: String(err) });
+  }
+});
+
+app.delete('/anotaciones/:id', requireAuth, requireRole('Administrador'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [result] = await pool.query('DELETE FROM Anotaciones WHERE id = ?', [id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Anotación no encontrada' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error eliminando anotación', detail: String(err) });
+  }
+});
+
+app.get('/sumarios', requireAuth, async (req, res) => {
+  try {
+    const funcionarioId = parseInt(req.query.funcionarioId || '0', 10);
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      if (!ownId) return res.status(404).json({ error: 'Funcionario no encontrado para el usuario' });
+      const [rows] = await pool.query(
+        'SELECT id, funcionarioid, numerosumario, descripcion, fechainicio, fechatermino, resultado, estado FROM Sumarios WHERE funcionarioid = ? ORDER BY fechainicio DESC',
+        [ownId]
+      );
+      return res.json(rows);
+    }
+    let query = 'SELECT id, funcionarioid, numerosumario, descripcion, fechainicio, fechatermino, resultado, estado FROM Sumarios';
+    const params = [];
+    if (funcionarioId) { query += ' WHERE funcionarioid = ?'; params.push(funcionarioId); }
+    query += ' ORDER BY fechainicio DESC';
+    const [rows] = await pool.query(query, params);
+    return res.json(rows);
+  } catch (err) {
+    return res.status(500).json({ error: 'Error listando sumarios', detail: String(err) });
+  }
+});
+
+app.post('/sumarios', requireAuth, requireRole('Administrador'), async (req, res) => {
+  try {
+    const { funcionarioid, numerosumario, descripcion, fechainicio, fechatermino, resultado, estado } = req.body || {};
+    if (!funcionarioid || !numerosumario || !descripcion || !fechainicio) {
+      return res.status(400).json({ error: 'Campos requeridos: funcionarioid, numerosumario, descripcion, fechainicio' });
+    }
+    const [result] = await pool.query(
+      'INSERT INTO Sumarios (funcionarioid, numerosumario, descripcion, fechainicio, fechatermino, resultado, estado) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [funcionarioid, numerosumario, descripcion, fechainicio, fechatermino || null, resultado || null, estado || 'Iniciado']
+    );
+    return res.status(201).json({ id: result.insertId });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error creando sumario', detail: String(err) });
+  }
+});
+
+app.put('/sumarios/:id', requireAuth, requireRole('Administrador'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { numerosumario, descripcion, fechainicio, fechatermino, resultado, estado } = req.body || {};
+    const fields = [];
+    const values = [];
+    if (numerosumario !== undefined) { fields.push('numerosumario = ?'); values.push(numerosumario); }
+    if (descripcion !== undefined) { fields.push('descripcion = ?'); values.push(descripcion); }
+    if (fechainicio !== undefined) { fields.push('fechainicio = ?'); values.push(fechainicio); }
+    if (fechatermino !== undefined) { fields.push('fechatermino = ?'); values.push(fechatermino); }
+    if (resultado !== undefined) { fields.push('resultado = ?'); values.push(resultado); }
+    if (estado !== undefined) { fields.push('estado = ?'); values.push(estado); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' });
+    values.push(id);
+    const [result] = await pool.query(`UPDATE Sumarios SET ${fields.join(', ')} WHERE id = ?`, values);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Sumario no encontrado' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error actualizando sumario', detail: String(err) });
+  }
+});
+
+app.delete('/sumarios/:id', requireAuth, requireRole('Administrador'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [result] = await pool.query('DELETE FROM Sumarios WHERE id = ?', [id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Sumario no encontrado' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error eliminando sumario', detail: String(err) });
+  }
+});
+
+app.get('/permisos/administrativos', requireAuth, async (req, res) => {
+  try {
+    const funcionarioId = parseInt(req.query.funcionarioId || '0', 10);
+    let targetId = funcionarioId;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      if (!ownId) return res.status(404).json({ error: 'Funcionario no encontrado para el usuario' });
+      targetId = ownId;
+    }
+    if (!targetId) return res.status(400).json({ error: 'funcionarioId es requerido (o use su propia sesión)' });
+    const [rows] = await pool.query(
+      'SELECT id, funcionarioid, tipopermiso, fechasolicitud, fechainicio, fechatermino, motivo, estado FROM PermisosAdministrativos WHERE funcionarioid = ? ORDER BY fechasolicitud DESC',
+      [targetId]
+    );
+    return res.json(rows);
+  } catch (err) {
+    return res.status(500).json({ error: 'Error listando permisos administrativos', detail: String(err) });
+  }
+});
+
+app.post('/permisos/administrativos', requireAuth, async (req, res) => {
+  try {
+    const { funcionarioid, tipopermiso, fechasolicitud, fechainicio, fechatermino, motivo, estado } = req.body || {};
+    let targetId = funcionarioid;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      if (!ownId) return res.status(404).json({ error: 'Funcionario no encontrado para el usuario' });
+      if (targetId && targetId !== ownId) return res.status(403).json({ error: 'No puede crear para otro funcionario' });
+      targetId = ownId;
+    }
+    if (!targetId || !tipopermiso || !fechasolicitud || !fechainicio || !fechatermino || !motivo) {
+      return res.status(400).json({ error: 'Campos requeridos: funcionarioid, tipopermiso, fechasolicitud, fechainicio, fechatermino, motivo' });
+    }
+    const [result] = await pool.query(
+      'INSERT INTO PermisosAdministrativos (funcionarioid, tipopermiso, fechasolicitud, fechainicio, fechatermino, motivo, estado) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [targetId, tipopermiso, fechasolicitud, fechainicio, fechatermino, motivo, estado || 'Solicitado']
+    );
+    return res.status(201).json({ id: result.insertId });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error creando permiso administrativo', detail: String(err) });
+  }
+});
+
+app.put('/permisos/administrativos/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      const owner = await getOwnerFuncionarioId('PermisosAdministrativos', id);
+      if (!owner) return res.status(404).json({ error: 'Permiso no encontrado' });
+      if (owner !== ownId) return res.status(403).json({ error: 'No puede editar este permiso' });
+    }
+    const { tipopermiso, fechasolicitud, fechainicio, fechatermino, motivo, estado } = req.body || {};
+    const fields = [];
+    const values = [];
+    if (tipopermiso !== undefined) { fields.push('tipopermiso = ?'); values.push(tipopermiso); }
+    if (fechasolicitud !== undefined) { fields.push('fechasolicitud = ?'); values.push(fechasolicitud); }
+    if (fechainicio !== undefined) { fields.push('fechainicio = ?'); values.push(fechainicio); }
+    if (fechatermino !== undefined) { fields.push('fechatermino = ?'); values.push(fechatermino); }
+    if (motivo !== undefined) { fields.push('motivo = ?'); values.push(motivo); }
+    if (estado !== undefined) { fields.push('estado = ?'); values.push(estado); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' });
+    values.push(id);
+    const [result] = await pool.query(`UPDATE PermisosAdministrativos SET ${fields.join(', ')} WHERE id = ?`, values);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Permiso no encontrado' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error actualizando permiso administrativo', detail: String(err) });
+  }
+});
+
+app.delete('/permisos/administrativos/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      const owner = await getOwnerFuncionarioId('PermisosAdministrativos', id);
+      if (!owner) return res.status(404).json({ error: 'Permiso no encontrado' });
+      if (owner !== ownId) return res.status(403).json({ error: 'No puede eliminar este permiso' });
+    }
+    const [result] = await pool.query('DELETE FROM PermisosAdministrativos WHERE id = ?', [id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Permiso no encontrado' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error eliminando permiso administrativo', detail: String(err) });
+  }
+});
+
+app.get('/permisos/compensatorios', requireAuth, async (req, res) => {
+  try {
+    const funcionarioId = parseInt(req.query.funcionarioId || '0', 10);
+    let targetId = funcionarioId;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      if (!ownId) return res.status(404).json({ error: 'Funcionario no encontrado para el usuario' });
+      targetId = ownId;
+    }
+    if (!targetId) return res.status(400).json({ error: 'funcionarioId es requerido (o use su propia sesión)' });
+    const [rows] = await pool.query(
+      'SELECT id, funcionarioid, fechasolicitud, fechapermiso, horas, motivo, estado FROM PermisosCompensatorios WHERE funcionarioid = ? ORDER BY fechasolicitud DESC',
+      [targetId]
+    );
+    return res.json(rows);
+  } catch (err) {
+    return res.status(500).json({ error: 'Error listando permisos compensatorios', detail: String(err) });
+  }
+});
+
+app.post('/permisos/compensatorios', requireAuth, async (req, res) => {
+  try {
+    const { funcionarioid, fechasolicitud, fechapermiso, horas, motivo, estado } = req.body || {};
+    let targetId = funcionarioid;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      if (!ownId) return res.status(404).json({ error: 'Funcionario no encontrado para el usuario' });
+      if (targetId && targetId !== ownId) return res.status(403).json({ error: 'No puede crear para otro funcionario' });
+      targetId = ownId;
+    }
+    if (!targetId || !fechasolicitud || !fechapermiso || horas === undefined || !motivo) {
+      return res.status(400).json({ error: 'Campos requeridos: funcionarioid, fechasolicitud, fechapermiso, horas, motivo' });
+    }
+    const [result] = await pool.query(
+      'INSERT INTO PermisosCompensatorios (funcionarioid, fechasolicitud, fechapermiso, horas, motivo, estado) VALUES (?, ?, ?, ?, ?, ?)',
+      [targetId, fechasolicitud, fechapermiso, horas, motivo, estado || 'Solicitado']
+    );
+    return res.status(201).json({ id: result.insertId });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error creando permiso compensatorio', detail: String(err) });
+  }
+});
+
+app.put('/permisos/compensatorios/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      const owner = await getOwnerFuncionarioId('PermisosCompensatorios', id);
+      if (!owner) return res.status(404).json({ error: 'Permiso no encontrado' });
+      if (owner !== ownId) return res.status(403).json({ error: 'No puede editar este permiso' });
+    }
+    const { fechasolicitud, fechapermiso, horas, motivo, estado } = req.body || {};
+    const fields = [];
+    const values = [];
+    if (fechasolicitud !== undefined) { fields.push('fechasolicitud = ?'); values.push(fechasolicitud); }
+    if (fechapermiso !== undefined) { fields.push('fechapermiso = ?'); values.push(fechapermiso); }
+    if (horas !== undefined) { fields.push('horas = ?'); values.push(horas); }
+    if (motivo !== undefined) { fields.push('motivo = ?'); values.push(motivo); }
+    if (estado !== undefined) { fields.push('estado = ?'); values.push(estado); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' });
+    values.push(id);
+    const [result] = await pool.query(`UPDATE PermisosCompensatorios SET ${fields.join(', ')} WHERE id = ?`, values);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Permiso no encontrado' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error actualizando permiso compensatorio', detail: String(err) });
+  }
+});
+
+app.delete('/permisos/compensatorios/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      const owner = await getOwnerFuncionarioId('PermisosCompensatorios', id);
+      if (!owner) return res.status(404).json({ error: 'Permiso no encontrado' });
+      if (owner !== ownId) return res.status(403).json({ error: 'No puede eliminar este permiso' });
+    }
+    const [result] = await pool.query('DELETE FROM PermisosCompensatorios WHERE id = ?', [id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Permiso no encontrado' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error eliminando permiso compensatorio', detail: String(err) });
+  }
+});
+
+app.get('/cometidos', requireAuth, async (req, res) => {
+  try {
+    const funcionarioId = parseInt(req.query.funcionarioId || '0', 10);
+    let targetId = funcionarioId;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      if (!ownId) return res.status(404).json({ error: 'Funcionario no encontrado para el usuario' });
+      targetId = ownId;
+    }
+    if (!targetId) return res.status(400).json({ error: 'funcionarioId es requerido (o use su propia sesión)' });
+    const [rows] = await pool.query(
+      'SELECT id, funcionarioid, destino, fechasolicitud, fechainicio, fechatermino, objetivo, estado FROM Cometidos WHERE funcionarioid = ? ORDER BY fechasolicitud DESC',
+      [targetId]
+    );
+    return res.json(rows);
+  } catch (err) {
+    return res.status(500).json({ error: 'Error listando cometidos', detail: String(err) });
+  }
+});
+
+app.post('/cometidos', requireAuth, async (req, res) => {
+  try {
+    const { funcionarioid, destino, fechasolicitud, fechainicio, fechatermino, objetivo, estado } = req.body || {};
+    let targetId = funcionarioid;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      if (!ownId) return res.status(404).json({ error: 'Funcionario no encontrado para el usuario' });
+      if (targetId && targetId !== ownId) return res.status(403).json({ error: 'No puede crear para otro funcionario' });
+      targetId = ownId;
+    }
+    if (!targetId || !destino || !fechasolicitud || !fechainicio || !fechatermino || !objetivo) {
+      return res.status(400).json({ error: 'Campos requeridos: funcionarioid, destino, fechasolicitud, fechainicio, fechatermino, objetivo' });
+    }
+    const [result] = await pool.query(
+      'INSERT INTO Cometidos (funcionarioid, destino, fechasolicitud, fechainicio, fechatermino, objetivo, estado) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [targetId, destino, fechasolicitud, fechainicio, fechatermino, objetivo, estado || 'Solicitado']
+    );
+    return res.status(201).json({ id: result.insertId });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error creando cometido', detail: String(err) });
+  }
+});
+
+app.put('/cometidos/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      const owner = await getOwnerFuncionarioId('Cometidos', id);
+      if (!owner) return res.status(404).json({ error: 'Cometido no encontrado' });
+      if (owner !== ownId) return res.status(403).json({ error: 'No puede editar este cometido' });
+    }
+    const { destino, fechasolicitud, fechainicio, fechatermino, objetivo, estado } = req.body || {};
+    const fields = [];
+    const values = [];
+    if (destino !== undefined) { fields.push('destino = ?'); values.push(destino); }
+    if (fechasolicitud !== undefined) { fields.push('fechasolicitud = ?'); values.push(fechasolicitud); }
+    if (fechainicio !== undefined) { fields.push('fechainicio = ?'); values.push(fechainicio); }
+    if (fechatermino !== undefined) { fields.push('fechatermino = ?'); values.push(fechatermino); }
+    if (objetivo !== undefined) { fields.push('objetivo = ?'); values.push(objetivo); }
+    if (estado !== undefined) { fields.push('estado = ?'); values.push(estado); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' });
+    values.push(id);
+    const [result] = await pool.query(`UPDATE Cometidos SET ${fields.join(', ')} WHERE id = ?`, values);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Cometido no encontrado' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error actualizando cometido', detail: String(err) });
+  }
+});
+
+app.delete('/cometidos/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      const owner = await getOwnerFuncionarioId('Cometidos', id);
+      if (!owner) return res.status(404).json({ error: 'Cometido no encontrado' });
+      if (owner !== ownId) return res.status(403).json({ error: 'No puede eliminar este cometido' });
+    }
+    const [result] = await pool.query('DELETE FROM Cometidos WHERE id = ?', [id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Cometido no encontrado' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error eliminando cometido', detail: String(err) });
+  }
+});
+
+app.get('/documentos', requireAuth, async (req, res) => {
+  try {
+    const funcionarioId = parseInt(req.query.funcionarioId || '0', 10);
+    let targetId = funcionarioId;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      if (!ownId) return res.status(404).json({ error: 'Funcionario no encontrado para el usuario' });
+      targetId = ownId;
+    }
+    if (!targetId) return res.status(400).json({ error: 'funcionarioId es requerido (o use su propia sesión)' });
+    const [rows] = await pool.query(
+      'SELECT id, funcionarioid, tipodocumento, nombredocumento, rutarachivo, fechacarga, descripcion FROM Documentos WHERE funcionarioid = ? ORDER BY fechacarga DESC',
+      [targetId]
+    );
+    return res.json(rows);
+  } catch (err) {
+    return res.status(500).json({ error: 'Error listando documentos', detail: String(err) });
+  }
+});
+
+app.post('/documentos', requireAuth, async (req, res) => {
+  try {
+    const { funcionarioid, tipodocumento, nombredocumento, rutarachivo, descripcion } = req.body || {};
+    let targetId = funcionarioid;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      if (!ownId) return res.status(404).json({ error: 'Funcionario no encontrado para el usuario' });
+      if (targetId && targetId !== ownId) return res.status(403).json({ error: 'No puede crear para otro funcionario' });
+      targetId = ownId;
+    }
+    if (!targetId || !tipodocumento || !nombredocumento || !rutarachivo) {
+      return res.status(400).json({ error: 'Campos requeridos: funcionarioid, tipodocumento, nombredocumento, rutarachivo' });
+    }
+    const [result] = await pool.query(
+      'INSERT INTO Documentos (funcionarioid, tipodocumento, nombredocumento, rutarachivo, descripcion) VALUES (?, ?, ?, ?, ?)',
+      [targetId, tipodocumento, nombredocumento, rutarachivo, descripcion || null]
+    );
+    return res.status(201).json({ id: result.insertId });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error creando documento', detail: String(err) });
+  }
+});
+
+app.put('/documentos/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      const owner = await getOwnerFuncionarioId('Documentos', id);
+      if (!owner) return res.status(404).json({ error: 'Documento no encontrado' });
+      if (owner !== ownId) return res.status(403).json({ error: 'No puede editar este documento' });
+    }
+    const { tipodocumento, nombredocumento, rutarachivo, descripcion } = req.body || {};
+    const fields = [];
+    const values = [];
+    if (tipodocumento !== undefined) { fields.push('tipodocumento = ?'); values.push(tipodocumento); }
+    if (nombredocumento !== undefined) { fields.push('nombredocumento = ?'); values.push(nombredocumento); }
+    if (rutarachivo !== undefined) { fields.push('rutarachivo = ?'); values.push(rutarachivo); }
+    if (descripcion !== undefined) { fields.push('descripcion = ?'); values.push(descripcion); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' });
+    values.push(id);
+    const [result] = await pool.query(`UPDATE Documentos SET ${fields.join(', ')} WHERE id = ?`, values);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Documento no encontrado' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error actualizando documento', detail: String(err) });
+  }
+});
+
+app.delete('/documentos/:id', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      const owner = await getOwnerFuncionarioId('Documentos', id);
+      if (!owner) return res.status(404).json({ error: 'Documento no encontrado' });
+      if (owner !== ownId) return res.status(403).json({ error: 'No puede eliminar este documento' });
+    }
+    const [result] = await pool.query('DELETE FROM Documentos WHERE id = ?', [id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Documento no encontrado' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error eliminando documento', detail: String(err) });
+  }
+});
+
+app.get('/formatos-certificados', requireAuth, requireRole('Administrador'), async (_req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT id, nombreformato, codigo, contenidotemplate, activo FROM FormatosCertificados ORDER BY nombreformato ASC');
+    return res.json(rows);
+  } catch (err) {
+    return res.status(500).json({ error: 'Error listando formatos', detail: String(err) });
+  }
+});
+
+app.post('/formatos-certificados', requireAuth, requireRole('Administrador'), async (req, res) => {
+  try {
+    const { nombreformato, codigo, contenidotemplate, activo = true } = req.body || {};
+    if (!nombreformato || !codigo || !contenidotemplate) return res.status(400).json({ error: 'nombreformato, codigo y contenidotemplate son requeridos' });
+    const [result] = await pool.query('INSERT INTO FormatosCertificados (nombreformato, codigo, contenidotemplate, activo) VALUES (?, ?, ?, ?)', [nombreformato, codigo, contenidotemplate, activo ? 1 : 0]);
+    return res.status(201).json({ id: result.insertId });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error creando formato', detail: String(err) });
+  }
+});
+
+app.put('/formatos-certificados/:id', requireAuth, requireRole('Administrador'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { nombreformato, codigo, contenidotemplate, activo } = req.body || {};
+    const fields = [];
+    const values = [];
+    if (nombreformato !== undefined) { fields.push('nombreformato = ?'); values.push(nombreformato); }
+    if (codigo !== undefined) { fields.push('codigo = ?'); values.push(codigo); }
+    if (contenidotemplate !== undefined) { fields.push('contenidotemplate = ?'); values.push(contenidotemplate); }
+    if (activo !== undefined) { fields.push('activo = ?'); values.push(activo ? 1 : 0); }
+    if (fields.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' });
+    values.push(id);
+    const [result] = await pool.query(`UPDATE FormatosCertificados SET ${fields.join(', ')} WHERE id = ?`, values);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Formato no encontrado' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error actualizando formato', detail: String(err) });
+  }
+});
+
+app.delete('/formatos-certificados/:id', requireAuth, requireRole('Administrador'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    const [result] = await pool.query('DELETE FROM FormatosCertificados WHERE id = ?', [id]);
+    if (result.affectedRows === 0) return res.status(404).json({ error: 'Formato no encontrado' });
+    return res.json({ ok: true });
+  } catch (err) {
+    return res.status(500).json({ error: 'Error eliminando formato', detail: String(err) });
+  }
+});
+
+app.listen(PORT, () => {
+  console.log(`Core service listening on port ${PORT}`);
+});
