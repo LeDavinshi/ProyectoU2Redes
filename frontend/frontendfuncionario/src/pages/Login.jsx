@@ -1,12 +1,23 @@
-import React, { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import React, { useState, useEffect } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
 
 export default function Login() {
   const navigate = useNavigate()
+  const location = useLocation()
+  const { user, login } = useAuth()
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (user) {
+      // Redirigir a la página que intentaba acceder o al perfil por defecto
+      const from = location.state?.from?.pathname || '/perfil'
+      navigate(from)
+    }
+  }, [user, navigate, location])
 
   const AUTH_URL = (import.meta.env.VITE_AUTH_URL || 'http://localhost:4000') + '/login'
 
@@ -27,8 +38,7 @@ export default function Login() {
       if (bloqueados.includes(perfil)) {
         throw new Error('No puedes acceder con este usuario al portal funcionario')
       }
-      try { localStorage.setItem('user', JSON.stringify(data.user)) } catch {}
-      navigate('/perfil')
+      login(data.user)
     } catch (err) {
       setError(typeof err?.message === 'string' ? err.message : 'Credenciales inválidas')
     } finally {
@@ -39,10 +49,10 @@ export default function Login() {
   return (
     <div style={{ padding: "50px" }}>
       <h2>Inicio de Sesión Funcionario</h2>
-      <form>
+      <form onSubmit={onSubmit}>
         <input type="text" placeholder="Usuario" value={username} onChange={(e)=>setUsername(e.target.value)} />
         <input type="password" placeholder="Contraseña" value={password} onChange={(e)=>setPassword(e.target.value)} />
-        <button type="button" onClick={onSubmit} disabled={loading}>{loading ? 'Ingresando...' : 'Entrar'}</button>
+        <button type="submit" disabled={loading}>{loading ? 'Ingresando...' : 'Entrar'}</button>
       </form>
       {error && <div style={{ color: 'red', marginTop: '10px' }}>{error}</div>}
     </div>
