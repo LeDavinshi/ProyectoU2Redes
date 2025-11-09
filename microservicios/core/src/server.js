@@ -446,19 +446,30 @@ function nextBienioDate(fechaIngreso) {
 app.get('/bienios/proximos', requireAuth, requireRole('Administrador'), async (req, res) => {
   try {
     const dias = Math.min(parseInt(req.query.dias || '60', 10), 365);
-    const [rows] = await pool.query(
-      'SELECT id, usuario_id, nombres, apellidopat, apellidomat, fechaingreso FROM Funcionarios WHERE activo = 1'
+    const [tabRows] = await pool.query(
+      `SELECT b.funcionarioid AS funcionarioId,
+              CONCAT(f.nombres, ' ', f.apellidopat, ' ', IFNULL(f.apellidomat, '')) AS nombre,
+              f.fechaingreso AS fechaIngreso,
+              CASE
+                WHEN b.fechacumplimiento IS NOT NULL THEN b.fechacumplimiento
+                ELSE b.fechatermino
+              END AS proximoBienio,
+              LEAST(
+                IFNULL(DATEDIFF(b.fechacumplimiento, CURDATE()), 99999),
+                IFNULL(DATEDIFF(b.fechatermino, CURDATE()), 99999)
+              ) AS diasParaCumplir
+       FROM Bienios b
+       JOIN Funcionarios f ON f.id = b.funcionarioid
+       WHERE (
+         (b.fechacumplimiento IS NOT NULL AND DATEDIFF(b.fechacumplimiento, CURDATE()) BETWEEN 0 AND ?) OR
+         (b.fechacumplimiento IS NULL AND b.fechatermino IS NOT NULL AND DATEDIFF(b.fechatermino, CURDATE()) BETWEEN 0 AND ?)
+       )
+       ORDER BY proximoBienio ASC`,
+      [dias, dias]
     );
-    const now = new Date();
-    const result = rows
-      .map((f) => {
-        const next = nextBienioDate(f.fechaingreso);
-        const diff = daysBetween(now, next);
-        return { funcionarioId: f.id, nombre: `${f.nombres} ${f.apellidopat} ${f.apellidomat || ''}`.trim(), fechaIngreso: f.fechaingreso, proximoBienio: next.toISOString().slice(0, 10), diasParaCumplir: diff };
-      })
-      .filter((x) => x.diasParaCumplir >= 0 && x.diasParaCumplir <= dias)
-      .sort((a, b) => a.diasParaCumplir - b.diasParaCumplir);
-    return res.json(result);
+    const soloTabla = tabRows.filter(r => r.diasParaCumplir >= 0 && r.diasParaCumplir <= dias)
+      .sort((a,b)=>a.diasParaCumplir - b.diasParaCumplir);
+    return res.json(soloTabla);
   } catch (err) {
     return res.status(500).json({ error: 'Error calculando bienios próximos', detail: String(err) });
   }
@@ -623,6 +634,25 @@ app.delete('/bienios/:id', requireAuth, requireRole('Administrador'), async (req
     return res.json({ ok: true });
   } catch (err) {
     return res.status(500).json({ error: 'Error eliminando bienio', detail: String(err) });
+  }
+});
+
+// Bienios registrados recientemente (admin)
+app.get('/bienios/recientes', requireAuth, requireRole('Administrador'), async (req, res) => {
+  try {
+    const dias = Math.min(parseInt(req.query.dias || '30', 10), 365);
+    const [rows] = await pool.query(
+      `SELECT b.id, b.funcionarioid, f.nombres, f.apellidopat, f.apellidomat,
+              b.fechainicio, b.fechatermino, b.cumplido, b.fechacumplimiento
+       FROM Bienios b
+       JOIN Funcionarios f ON f.id = b.funcionarioid
+       WHERE DATE(b.fechainicio) >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+       ORDER BY b.fechainicio DESC`,
+      [dias]
+    );
+    return res.json(rows);
+  } catch (err) {
+    return res.status(500).json({ error: 'Error listando bienios recientes', detail: String(err) });
   }
 });
 
