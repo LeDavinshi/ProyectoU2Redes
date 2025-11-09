@@ -7,6 +7,8 @@ import Cargos from "./pages/Cargos";
 import { isAdmin, can } from "./auth";
 import Fichas from "./pages/Fichas";
 import Carrera from "./pages/Carrera";
+import PermisosAdministrativos from "./pages/PermisosAdministrativos";
+import PermisosCompensatorios from "./pages/PermisosCompensatorios";
 
 function App() {
   function RequireAdmin({ children }) {
@@ -27,6 +29,8 @@ function App() {
         <Route path="/cargos" element={<RequireAdmin><Cargos /></RequireAdmin>} />
         <Route path="/fichas" element={<RequireAdmin><Fichas /></RequireAdmin>} />
         <Route path="/carrera" element={<RequireAdmin><Carrera /></RequireAdmin>} />
+        <Route path="/permisos/administrativos" element={<RequireAdmin><PermisosAdministrativos /></RequireAdmin>} />
+        <Route path="/permisos/compensatorios" element={<RequireAdmin><PermisosCompensatorios /></RequireAdmin>} />
       </Routes>
     </>
   );
