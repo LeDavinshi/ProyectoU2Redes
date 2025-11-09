@@ -62,3 +62,10 @@ export async function coreFetch(path, options = {}) {
   if (u?.id) headers.set('x-user-id', String(u.id));
   return fetch(`http://localhost:4200${path}`, { ...options, headers });
 }
+
+export async function docsFetch(path, options = {}) {
+  const u = getUser();
+  const headers = new Headers(options.headers || {});
+  if (u?.id) headers.set('x-user-id', String(u.id));
+  return fetch(`http://localhost:4300${path}`, { ...options, headers });
+}

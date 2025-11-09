@@ -59,6 +59,29 @@ services:
       mysql-master:
         condition: service_healthy
 
+  documentacion:
+    build: ./microservicios/documentacion
+    container_name: documentacion-service
+    ports:
+      - "4300:4300"
+    environment:
+      - NODE_ENV=production
+      - PORT=4300
+      - DB_HOST=${DB_HOST:-mysql-master}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER:-admin}
+      - DB_PASSWORD=${DB_PASSWORD:-admin123}
+      - DB_NAME=${DB_NAME:-gestion_personal}
+    volumes:
+      - ./microservicios/documentacion/uploads:/app/uploads
+    restart: unless-stopped
+    networks:
+      - app-net
+      - mysql-network
+    depends_on:
+      mysql-master:
+        condition: service_healthy
+
   mysql-master:
     image: mariadb:10.11
     container_name: mysql-master

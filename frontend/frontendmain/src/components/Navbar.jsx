@@ -24,6 +24,8 @@ export default function Navbar() {
           <Link to="/cargos" style={{ color: "white" }}>Cargos</Link>
           <Link to="/permisos/administrativos" style={{ color: "white", marginLeft: "20px" }}>Permisos Adm.</Link>
           <Link to="/permisos/compensatorios" style={{ color: "white", marginLeft: "20px" }}>Permisos Comp.</Link>
+          <Link to="/documentos" style={{ color: "white", marginLeft: "20px" }}>Documentos</Link>
+          <Link to="/formatos" style={{ color: "white", marginLeft: "20px" }}>Formatos</Link>
         </>
       )}
 
