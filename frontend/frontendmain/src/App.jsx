@@ -4,11 +4,15 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Usuarios from "./pages/Usuarios";
 import Cargos from "./pages/Cargos";
-import { isAdmin } from "./auth";
+import { isAdmin, can } from "./auth";
 
 function App() {
   function RequireAdmin({ children }) {
     if (!isAdmin()) return <Navigate to="/" replace />;
+    return children;
+  }
+  function RequirePerm({ perm, children }) {
+    if (!can(perm)) return <Navigate to="/" replace />;
     return children;
   }
   return (

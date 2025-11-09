@@ -134,13 +134,57 @@ app.put('/usuarios/:id', requireAuth, requireRole('Administrador'), async (req, 
 
 // Eliminar usuario
 app.delete('/usuarios/:id', requireAuth, requireRole('Administrador'), async (req, res) => {
+  const conn = await pool.getConnection();
   try {
     const { id } = req.params;
-    const [result] = await pool.query('DELETE FROM Usuarios WHERE id = ?', [id]);
-    if (result.affectedRows === 0) return res.status(404).json({ error: 'Usuario no encontrado' });
+    await conn.beginTransaction();
+
+    // Verificar existencia de usuario
+    const [urows] = await conn.query('SELECT id FROM Usuarios WHERE id = ? LIMIT 1', [id]);
+    if (!urows || urows.length === 0) {
+      await conn.rollback();
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    // Buscar funcionario asociado
+    const [frows] = await conn.query('SELECT id FROM Funcionarios WHERE usuario_id = ? LIMIT 1', [id]);
+    if (frows && frows[0]) {
+      const funcionarioId = frows[0].id;
+
+      // Eliminar tablas dependientes del funcionario (sin ON DELETE CASCADE en esquema)
+      const tables = [
+        'ContactosFuncionario',
+        'HistorialCargos',
+        'Bienios',
+        'Estudios',
+        'Capacitaciones',
+        'Calificaciones',
+        'Anotaciones',
+        'Sumarios',
+        'PermisosAdministrativos',
+        'PermisosCompensatorios',
+        'Cometidos',
+        'Documentos',
+      ];
+      for (const t of tables) {
+        const col = t === 'ContactosFuncionario' ? 'idfuncionario' : 'funcionarioid';
+        await conn.query(`DELETE FROM ${t} WHERE ${col} = ?`, [funcionarioId]);
+      }
+
+      // Eliminar funcionario
+      await conn.query('DELETE FROM Funcionarios WHERE id = ?', [funcionarioId]);
+    }
+
+    // Finalmente eliminar usuario
+    await conn.query('DELETE FROM Usuarios WHERE id = ?', [id]);
+
+    await conn.commit();
     return res.json({ ok: true });
   } catch (err) {
+    try { await conn.rollback(); } catch {}
     return res.status(500).json({ error: 'Error eliminando usuario', detail: String(err) });
+  } finally {
+    conn.release();
   }
 });
 

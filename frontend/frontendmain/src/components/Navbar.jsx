@@ -1,10 +1,11 @@
 import { Link, useNavigate } from "react-router-dom";
-import { getUser, isAdmin, clearUser } from "../auth";
+import { getUser, isAdmin, clearUser, can } from "../auth";
 
 export default function Navbar() {
   const navigate = useNavigate();
   const user = getUser();
   const admin = isAdmin();
+  const canPerfil = can('perfil:view');
 
   function logout() {
     clearUser();
@@ -20,6 +21,9 @@ export default function Navbar() {
           <Link to="/usuarios" style={{ color: "white", marginRight: "20px" }}>Usuarios</Link>
           <Link to="/cargos" style={{ color: "white" }}>Cargos</Link>
         </>
+      )}
+      {canPerfil && (
+        <Link to="/mi-perfil" style={{ color: "white" }}>Mi Perfil</Link>
       )}
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
         {user ? (

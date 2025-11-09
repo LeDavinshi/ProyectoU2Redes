@@ -32,8 +32,15 @@ const PERMISSIONS = {
     'usuarios:update',
     'usuarios:delete',
     'cargos:list',
+    'funcionarios:list',
+    'funcionarios:create',
+    'funcionarios:update',
+    'funcionarios:delete',
+    'perfil:view',
   ]),
-  Funcionario: new Set([]),
+  Funcionario: new Set([
+    'perfil:view',
+  ]),
 };
 
 export function getRole() {
