@@ -5,7 +5,7 @@ export default function Navbar() {
   const navigate = useNavigate();
   const user = getUser();
   const admin = isAdmin();
-  const canPerfil = can('perfil:view');
+  const canPerfil = false;
 
   function logout() {
     clearUser();
@@ -19,12 +19,12 @@ export default function Navbar() {
         <>
           <Link to="/dashboard" style={{ color: "white", marginRight: "20px" }}>Panel</Link>
           <Link to="/usuarios" style={{ color: "white", marginRight: "20px" }}>Usuarios</Link>
+          <Link to="/fichas" style={{ color: "white", marginRight: "20px" }}>Fichas</Link>
+          <Link to="/carrera" style={{ color: "white", marginRight: "20px" }}>Carrera</Link>
           <Link to="/cargos" style={{ color: "white" }}>Cargos</Link>
         </>
       )}
-      {canPerfil && (
-        <Link to="/mi-perfil" style={{ color: "white" }}>Mi Perfil</Link>
-      )}
+
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '12px' }}>
         {user ? (
           <>

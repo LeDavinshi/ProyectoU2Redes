@@ -5,6 +5,8 @@ import Dashboard from "./pages/Dashboard";
 import Usuarios from "./pages/Usuarios";
 import Cargos from "./pages/Cargos";
 import { isAdmin, can } from "./auth";
+import Fichas from "./pages/Fichas";
+import Carrera from "./pages/Carrera";
 
 function App() {
   function RequireAdmin({ children }) {
@@ -23,6 +25,8 @@ function App() {
         <Route path="/dashboard" element={<RequireAdmin><Dashboard /></RequireAdmin>} />
         <Route path="/usuarios" element={<RequireAdmin><Usuarios /></RequireAdmin>} />
         <Route path="/cargos" element={<RequireAdmin><Cargos /></RequireAdmin>} />
+        <Route path="/fichas" element={<RequireAdmin><Fichas /></RequireAdmin>} />
+        <Route path="/carrera" element={<RequireAdmin><Carrera /></RequireAdmin>} />
       </Routes>
     </>
   );
