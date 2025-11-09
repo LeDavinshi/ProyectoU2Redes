@@ -1,19 +1,24 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import Usuarios from "./pages/Usuarios";
 import Cargos from "./pages/Cargos";
+import { isAdmin } from "./auth";
 
 function App() {
+  function RequireAdmin({ children }) {
+    if (!isAdmin()) return <Navigate to="/" replace />;
+    return children;
+  }
   return (
     <>
       <Navbar />
       <Routes>
         <Route path="/" element={<Login />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/usuarios" element={<Usuarios />} />
-        <Route path="/cargos" element={<Cargos />} />
+        <Route path="/dashboard" element={<RequireAdmin><Dashboard /></RequireAdmin>} />
+        <Route path="/usuarios" element={<RequireAdmin><Usuarios /></RequireAdmin>} />
+        <Route path="/cargos" element={<RequireAdmin><Cargos /></RequireAdmin>} />
       </Routes>
     </>
   );
