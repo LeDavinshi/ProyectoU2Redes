@@ -24,6 +24,30 @@ export function isAdmin() {
   return !!u && u.perfil === 'Administrador';
 }
 
+// Roles y permisos básicos. Ajustar según necesidades futuras.
+const PERMISSIONS = {
+  Administrador: new Set([
+    'usuarios:list',
+    'usuarios:create',
+    'usuarios:update',
+    'usuarios:delete',
+    'cargos:list',
+  ]),
+  Funcionario: new Set([]),
+};
+
+export function getRole() {
+  const u = getUser();
+  return u?.perfil || null;
+}
+
+export function can(action) {
+  const role = getRole();
+  if (!role) return false;
+  const set = PERMISSIONS[role];
+  return !!set && set.has(action);
+}
+
 // Helper for calling core service with x-user-id header
 export async function coreFetch(path, options = {}) {
   const u = getUser();
