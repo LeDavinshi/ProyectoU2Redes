@@ -117,6 +117,31 @@ services:
       mysql-master:
         condition: service_healthy
 
+  registros:
+    build: ./microservicios/registros
+    container_name: registros-service
+    ports:
+      - "4400:4400"
+    environment:
+      - NODE_ENV=production
+      - PORT=4400
+      - DB_HOST=${DB_HOST:-mysql-master}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER:-admin}
+      - DB_PASSWORD=${DB_PASSWORD:-admin123}
+      - DB_NAME=${DB_NAME:-gestion_personal}
+      - AUTH_HEALTH_URL=http://auth:4000/health
+      - CORE_HEALTH_URL=http://core:4200/health
+      - DOC_HEALTH_URL=http://documentacion:4300/health
+      - POLL_INTERVAL_MS=10000
+    restart: unless-stopped
+    networks:
+      - app-net
+      - mysql-network
+    depends_on:
+      mysql-master:
+        condition: service_healthy
+
   mysql-master:
     image: mariadb:10.11
     container_name: mysql-master
