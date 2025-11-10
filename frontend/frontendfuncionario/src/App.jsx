@@ -5,6 +5,8 @@ import Perfil from "./pages/Perfil";
 import Capacitaciones from "./pages/Capacitaciones";
 import Permisos from "./pages/Permisos";
 import Documentos from "./pages/Documentos";
+import Bienios from "./pages/Bienios";
+import Carrera from "./pages/Carrera";
 import { isFuncionario } from "./auth";
 
 function App() {
@@ -22,6 +24,8 @@ function App() {
       <Routes>
         <Route path="/" element={<RedirectIfLogged><Login /></RedirectIfLogged>} />
         <Route path="/perfil" element={<RequireFuncionario><Perfil /></RequireFuncionario>} />
+        <Route path="/bienios" element={<RequireFuncionario><Bienios /></RequireFuncionario>} />
+        <Route path="/carrera" element={<RequireFuncionario><Carrera /></RequireFuncionario>} />
         <Route path="/capacitaciones" element={<RequireFuncionario><Capacitaciones /></RequireFuncionario>} />
         <Route path="/permisos" element={<RequireFuncionario><Permisos /></RequireFuncionario>} />
         <Route path="/documentos" element={<RequireFuncionario><Documentos /></RequireFuncionario>} />

@@ -16,6 +16,8 @@ export default function Navbar() {
       {logged && (
         <>
           <Link to="/perfil" style={{ color: "white", marginRight: "20px" }}>Mi Perfil</Link>
+          <Link to="/carrera" style={{ color: "white", marginRight: "20px" }}>Carrera</Link>
+          <Link to="/bienios" style={{ color: "white", marginRight: "20px" }}>Bienios</Link>
           <Link to="/capacitaciones" style={{ color: "white", marginRight: "20px" }}>Capacitaciones</Link>
           <Link to="/permisos" style={{ color: "white", marginRight: "20px" }}>Permisos</Link>
           <Link to="/documentos" style={{ color: "white" }}>Documentos</Link>

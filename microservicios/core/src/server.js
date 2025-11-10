@@ -661,6 +661,37 @@ async function getOwnerFuncionarioId(table, id) {
   return rows && rows[0] ? rows[0].funcionarioid : null;
 }
 
+// --- Historial de Cargos (lectura propia para funcionario; admin con query) ---
+app.get('/historialcargos', requireAuth, async (req, res) => {
+  try {
+    const funcionarioIdQ = parseInt(req.query.funcionarioId || '0', 10);
+    let targetId = funcionarioIdQ;
+    if (req.user.perfil === 'Funcionario') {
+      const ownId = await getFuncionarioIdByUserId(req.user.id);
+      if (!ownId) return res.status(404).json({ error: 'Funcionario no encontrado para el usuario' });
+      targetId = ownId;
+    }
+    if (!targetId) return res.status(400).json({ error: 'funcionarioId es requerido (o use su propia sesión)' });
+    const [rows] = await pool.query(
+      `SELECT hc.id,
+              hc.funcionarioid,
+              hc.cargoid,
+              hc.fechainicio,
+              hc.fechatermino,
+              hc.activo,
+              cc.nombrecargo
+       FROM HistorialCargos hc
+       LEFT JOIN CargosCarrera cc ON cc.id = hc.cargoid
+       WHERE hc.funcionarioid = ?
+       ORDER BY hc.fechainicio DESC`,
+      [targetId]
+    );
+    return res.json(rows);
+  } catch (err) {
+    return res.status(500).json({ error: 'Error listando historial de cargos', detail: String(err) });
+  }
+});
+
 app.get('/estudios', requireAuth, async (req, res) => {
   try {
     const funcionarioId = parseInt(req.query.funcionarioId || '0', 10);
