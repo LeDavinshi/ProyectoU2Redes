@@ -22,36 +22,48 @@ import Reportes from "./pages/Reportes";
 import Decretos from "./pages/Decretos";
 import Ascensos from "./pages/Ascensos";
 import HojaCarrera from "./pages/HojaCarrera";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import ProtectedRoute from "./components/ProtectedRoute";
+
+function AppContent() {
+  const { user } = useAuth();
+
+  return (
+    <>
+      {user && <Navbar />}
+      <Routes>
+        <Route path="/" element={<Login />} />
+        <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+        <Route path="/usuarios" element={<ProtectedRoute><Usuarios /></ProtectedRoute>} />
+        <Route path="/cargos" element={<ProtectedRoute><Cargos /></ProtectedRoute>} />
+        <Route path="/funcionarios" element={<ProtectedRoute><Funcionarios /></ProtectedRoute>} />
+        <Route path="/historial-cargos" element={<ProtectedRoute><HistorialCargos /></ProtectedRoute>} />
+        <Route path="/bienios" element={<ProtectedRoute><Bienios /></ProtectedRoute>} />
+        <Route path="/capacitaciones" element={<ProtectedRoute><Capacitaciones /></ProtectedRoute>} />
+        <Route path="/estudios" element={<ProtectedRoute><Estudios /></ProtectedRoute>} />
+        <Route path="/calificaciones" element={<ProtectedRoute><Calificaciones /></ProtectedRoute>} />
+        <Route path="/anotaciones" element={<ProtectedRoute><Anotaciones /></ProtectedRoute>} />
+        <Route path="/sumarios" element={<ProtectedRoute><Sumarios /></ProtectedRoute>} />
+        <Route path="/permisos/administrativos" element={<ProtectedRoute><PermisosAdministrativos /></ProtectedRoute>} />
+        <Route path="/permisos/compensatorios" element={<ProtectedRoute><PermisosCompensatorios /></ProtectedRoute>} />
+        <Route path="/cometidos" element={<ProtectedRoute><Cometidos /></ProtectedRoute>} />
+        <Route path="/documentos" element={<ProtectedRoute><Documentos /></ProtectedRoute>} />
+        <Route path="/formatos-certificados" element={<ProtectedRoute><FormatosCertificados /></ProtectedRoute>} />
+        <Route path="/certificados" element={<ProtectedRoute><Certificados /></ProtectedRoute>} />
+        <Route path="/reportes" element={<ProtectedRoute><Reportes /></ProtectedRoute>} />
+        <Route path="/decretos" element={<ProtectedRoute><Decretos /></ProtectedRoute>} />
+        <Route path="/ascensos" element={<ProtectedRoute><Ascensos /></ProtectedRoute>} />
+        <Route path="/hoja-carrera" element={<ProtectedRoute><HojaCarrera /></ProtectedRoute>} />
+      </Routes>
+    </>
+  );
+}
 
 function App() {
   return (
-    <>
-      <Navbar />
-      <Routes>
-        <Route path="/" element={<Login />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-        <Route path="/usuarios" element={<Usuarios />} />
-        <Route path="/cargos" element={<Cargos />} />
-        <Route path="/funcionarios" element={<Funcionarios />} />
-        <Route path="/historial-cargos" element={<HistorialCargos />} />
-        <Route path="/bienios" element={<Bienios />} />
-        <Route path="/capacitaciones" element={<Capacitaciones />} />
-        <Route path="/estudios" element={<Estudios />} />
-        <Route path="/calificaciones" element={<Calificaciones />} />
-        <Route path="/anotaciones" element={<Anotaciones />} />
-        <Route path="/sumarios" element={<Sumarios />} />
-        <Route path="/permisos/administrativos" element={<PermisosAdministrativos />} />
-        <Route path="/permisos/compensatorios" element={<PermisosCompensatorios />} />
-        <Route path="/cometidos" element={<Cometidos />} />
-        <Route path="/documentos" element={<Documentos />} />
-        <Route path="/formatos-certificados" element={<FormatosCertificados />} />
-        <Route path="/certificados" element={<Certificados />} />
-        <Route path="/reportes" element={<Reportes />} />
-        <Route path="/decretos" element={<Decretos />} />
-        <Route path="/ascensos" element={<Ascensos />} />
-        <Route path="/hoja-carrera" element={<HojaCarrera />} />
-      </Routes>
-    </>
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   );
 }
 
