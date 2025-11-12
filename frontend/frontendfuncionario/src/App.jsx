@@ -16,42 +16,30 @@ import SolicitudesCometido from "./pages/SolicitudesCometido";
 import SolicitudesCurso from "./pages/SolicitudesCurso";
 import HojaCarrera from "./pages/HojaCarrera";
 import HistorialCargos from "./pages/HistorialCargos";
-import { AuthProvider, useAuth } from "./context/AuthContext";
-import ProtectedRoute from "./components/ProtectedRoute";
-
-function AppContent() {
-  const { user } = useAuth();
-  
-  return (
-    <>
-      {user && <Navbar />}
-      <Routes>
-        <Route path="/" element={<Login />} />
-        <Route path="/perfil" element={<ProtectedRoute><Perfil /></ProtectedRoute>} />
-        <Route path="/capacitaciones" element={<ProtectedRoute><Capacitaciones /></ProtectedRoute>} />
-        <Route path="/permisos" element={<ProtectedRoute><Permisos /></ProtectedRoute>} />
-        <Route path="/documentos" element={<ProtectedRoute><Documentos /></ProtectedRoute>} />
-        <Route path="/estudios" element={<ProtectedRoute><Estudios /></ProtectedRoute>} />
-        <Route path="/calificaciones" element={<ProtectedRoute><Calificaciones /></ProtectedRoute>} />
-        <Route path="/anotaciones" element={<ProtectedRoute><Anotaciones /></ProtectedRoute>} />
-        <Route path="/sumarios" element={<ProtectedRoute><Sumarios /></ProtectedRoute>} />
-        <Route path="/bienios" element={<ProtectedRoute><Bienios /></ProtectedRoute>} />
-        <Route path="/cometidos" element={<ProtectedRoute><Cometidos /></ProtectedRoute>} />
-        <Route path="/solicitudes/compensatorio" element={<ProtectedRoute><SolicitudesCompensatorio /></ProtectedRoute>} />
-        <Route path="/solicitudes/cometido" element={<ProtectedRoute><SolicitudesCometido /></ProtectedRoute>} />
-        <Route path="/solicitudes/curso" element={<ProtectedRoute><SolicitudesCurso /></ProtectedRoute>} />
-        <Route path="/hoja-carrera" element={<ProtectedRoute><HojaCarrera /></ProtectedRoute>} />
-        <Route path="/historial-cargos" element={<ProtectedRoute><HistorialCargos /></ProtectedRoute>} />
-      </Routes>
-    </>
-  );
-}
 
 function App() {
   return (
-    <AuthProvider>
-      <AppContent />
-    </AuthProvider>
+    <>
+      <Navbar />
+      <Routes>
+        <Route path="/" element={<Login />} />
+        <Route path="/perfil" element={<Perfil />} />
+        <Route path="/capacitaciones" element={<Capacitaciones />} />
+        <Route path="/permisos" element={<Permisos />} />
+        <Route path="/documentos" element={<Documentos />} />
+        <Route path="/estudios" element={<Estudios />} />
+        <Route path="/calificaciones" element={<Calificaciones />} />
+        <Route path="/anotaciones" element={<Anotaciones />} />
+        <Route path="/sumarios" element={<Sumarios />} />
+        <Route path="/bienios" element={<Bienios />} />
+        <Route path="/cometidos" element={<Cometidos />} />
+        <Route path="/solicitudes/compensatorio" element={<SolicitudesCompensatorio />} />
+        <Route path="/solicitudes/cometido" element={<SolicitudesCometido />} />
+        <Route path="/solicitudes/curso" element={<SolicitudesCurso />} />
+        <Route path="/hoja-carrera" element={<HojaCarrera />} />
+        <Route path="/historial-cargos" element={<HistorialCargos />} />
+      </Routes>
+    </>
   );
 }
 

@@ -1,11 +1,21 @@
-import { Link } from "react-router-dom";
-import { useAuth } from "../context/AuthContext";
+import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 
 export default function Navbar() {
-  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    try {
+      const u = localStorage.getItem('user');
+      setUser(u ? JSON.parse(u) : null);
+    } catch {}
+  }, []);
 
   const handleLogout = () => {
-    logout();
+    try { localStorage.removeItem('user'); } catch {}
+    setUser(null);
+    navigate('/');
   };
 
   return (
