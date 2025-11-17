@@ -1,20 +1,55 @@
 version: "3.9"
 
 services:
-  frontend-admin:
+  frontend-admin-1:
     build: ./frontend/frontendmain
-    container_name: frontend-admin
-    ports:
-      - "3000:80"
+    container_name: frontend-admin-1
+    expose:
+      - "80"
     restart: unless-stopped
     networks:
       - app-net
 
-  frontend-funcionario:
+  frontend-admin-2:
+    build: ./frontend/frontendmain
+    container_name: frontend-admin-2
+    expose:
+      - "80"
+    restart: unless-stopped
+    networks:
+      - app-net
+
+  frontend-funcionario-1:
     build: ./frontend/frontendfuncionario
-    container_name: frontend-funcionario
+    container_name: frontend-funcionario-1
+    expose:
+      - "80"
+    restart: unless-stopped
+    networks:
+      - app-net
+
+  frontend-funcionario-2:
+    build: ./frontend/frontendfuncionario
+    container_name: frontend-funcionario-2
+    expose:
+      - "80"
+    restart: unless-stopped
+    networks:
+      - app-net
+
+  gateway:
+    image: nginx:alpine
+    container_name: gateway
     ports:
-      - "3001:80"
+      - "80:80"
+      - "81:81"
+    volumes:
+      - ./nginx/gateway.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - frontend-admin-1
+      - frontend-admin-2
+      - frontend-funcionario-1
+      - frontend-funcionario-2
     restart: unless-stopped
     networks:
       - app-net
@@ -37,6 +72,75 @@ services:
     networks:
       - app-net
       - mysql-network
+
+  core:
+    build: ./microservicios/core
+    container_name: core-service
+    ports:
+      - "4200:4200"
+    environment:
+      - NODE_ENV=production
+      - PORT=4200
+      - DB_HOST=${DB_HOST:-mysql-master}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER:-admin}
+      - DB_PASSWORD=${DB_PASSWORD:-admin123}
+      - DB_NAME=${DB_NAME:-gestion_personal}
+    restart: unless-stopped
+    networks:
+      - app-net
+      - mysql-network
+    depends_on:
+      mysql-master:
+        condition: service_healthy
+
+  documentacion:
+    build: ./microservicios/documentacion
+    container_name: documentacion-service
+    ports:
+      - "4300:4300"
+    environment:
+      - NODE_ENV=production
+      - PORT=4300
+      - DB_HOST=${DB_HOST:-mysql-master}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER:-admin}
+      - DB_PASSWORD=${DB_PASSWORD:-admin123}
+      - DB_NAME=${DB_NAME:-gestion_personal}
+    volumes:
+      - ./microservicios/documentacion/uploads:/app/uploads
+    restart: unless-stopped
+    networks:
+      - app-net
+      - mysql-network
+    depends_on:
+      mysql-master:
+        condition: service_healthy
+
+  registros:
+    build: ./microservicios/registros
+    container_name: registros-service
+    ports:
+      - "4400:4400"
+    environment:
+      - NODE_ENV=production
+      - PORT=4400
+      - DB_HOST=${DB_HOST:-mysql-master}
+      - DB_PORT=${DB_PORT:-3306}
+      - DB_USER=${DB_USER:-admin}
+      - DB_PASSWORD=${DB_PASSWORD:-admin123}
+      - DB_NAME=${DB_NAME:-gestion_personal}
+      - AUTH_HEALTH_URL=http://auth:4000/health
+      - CORE_HEALTH_URL=http://core:4200/health
+      - DOC_HEALTH_URL=http://documentacion:4300/health
+      - POLL_INTERVAL_MS=10000
+    restart: unless-stopped
+    networks:
+      - app-net
+      - mysql-network
+    depends_on:
+      mysql-master:
+        condition: service_healthy
 
   mysql-master:
     image: mariadb:10.11

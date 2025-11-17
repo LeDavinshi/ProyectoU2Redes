@@ -1,100 +1,66 @@
-import React, { useState } from "react";
+import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { setUser } from '../auth'
 
 export default function Login() {
-  const [usuario, setUsuario] = useState("");
-  const [contrasena, setContrasena] = useState("");
-  const [error, setError] = useState("");
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+  const navigate = useNavigate()
 
-  const handleSubmit = (e) => {
-    e.preventDefault();
-
-    if (!usuario || !contrasena) {
-      setError("Por favor, completa todos los campos.");
-      return;
+  async function onSubmit(e) {
+    e.preventDefault()
+    setError('')
+    setLoading(true)
+    try {
+      const res = await fetch('http://localhost:4000/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password })
+      })
+      const data = await res.json()
+      if (!res.ok || !data?.ok) {
+        throw new Error(data?.error || 'Credenciales inválidas')
+      }
+      const u = data.user
+      if (!u || u.perfil !== 'Administrador') {
+        throw new Error('Acceso restringido: solo administradores')
+      }
+      setUser(u)
+      navigate('/dashboard')
+    } catch (err) {
+      setError(String(err.message || err))
+    } finally {
+      setLoading(false)
     }
-
-    setError("");
-    console.log("Enviando datos:", { usuario, contrasena });
-    // Aquí puedes llamar a tu API de autenticación
-  };
+  }
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <h2 style={styles.title}>Inicio de Sesión - Funcionario</h2>
-
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <input
-            type="text"
-            placeholder="Usuario"
-            value={usuario}
-            onChange={(e) => setUsuario(e.target.value)}
-            style={styles.input}
-          />
-          <input
-            type="password"
-            placeholder="Contraseña"
-            value={contrasena}
-            onChange={(e) => setContrasena(e.target.value)}
-            style={styles.input}
-          />
-          {error && <p style={styles.error}>{error}</p>}
-          <button type="submit" style={styles.button}>
-            Entrar
-          </button>
-        </form>
-      </div>
+    <div style={{ padding: '50px' }}>
+      <h2>Inicio de Sesión</h2>
+      {error && (
+        <div style={{ color: 'white', background: '#cc0000', padding: '8px', marginBottom: '10px' }}>{error}</div>
+      )}
+      <form onSubmit={onSubmit}>
+        <input
+          type="text"
+          placeholder="Usuario (email o RUT)"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          style={{ display: 'block', marginBottom: '8px', padding: '8px', width: '300px' }}
+        />
+        <input
+          type="password"
+          placeholder="Contraseña"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          style={{ display: 'block', marginBottom: '8px', padding: '8px', width: '300px' }}
+        />
+        <button type="submit" disabled={loading} style={{ padding: '8px 16px' }}>
+          {loading ? 'Ingresando...' : 'Entrar'}
+        </button>
+      </form>
     </div>
-  );
+  )
 }
-
-const styles = {
-  container: {
-    display: "flex",
-    justifyContent: "center",
-    alignItems: "center",
-    height: "100vh",
-    background: "linear-gradient(135deg, #4f46e5, #3b82f6)",
-  },
-  card: {
-    background: "#fff",
-    padding: "40px",
-    borderRadius: "10px",
-    boxShadow: "0 4px 15px rgba(0, 0, 0, 0.2)",
-    width: "100%",
-    maxWidth: "400px",
-  },
-  title: {
-    textAlign: "center",
-    marginBottom: "20px",
-    color: "#1e3a8a",
-  },
-  form: {
-    display: "flex",
-    flexDirection: "column",
-    gap: "15px",
-  },
-  input: {
-    padding: "12px",
-    fontSize: "16px",
-    border: "1px solid #ccc",
-    borderRadius: "6px",
-    outline: "none",
-    transition: "border-color 0.3s",
-  },
-  button: {
-    backgroundColor: "#3b82f6",
-    color: "#fff",
-    fontWeight: "bold",
-    border: "none",
-    padding: "12px",
-    borderRadius: "6px",
-    cursor: "pointer",
-    transition: "background-color 0.3s",
-  },
-  error: {
-    color: "red",
-    fontSize: "14px",
-    textAlign: "center",
-  },
-};

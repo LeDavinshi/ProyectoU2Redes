@@ -1,34 +1,13 @@
-### Build stage
-FROM node:20-alpine AS builder
+FROM node:20-alpine
 
 WORKDIR /app
 
-COPY package.json package-lock.json* yarn.lock* pnpm-lock.yaml* ./
-RUN \
-  if [ -f package-lock.json ]; then npm ci --omit=dev; \
-  elif [ -f yarn.lock ]; then yarn install --frozen-lockfile --production; \
-  elif [ -f pnpm-lock.yaml ]; then corepack enable && pnpm i --prod; \
-  else npm i --omit=dev; fi
+COPY package.json package-lock.json* ./
+RUN npm ci --only=production || npm install --only=production
 
-COPY src ./src
+COPY . .
 
-### Runtime stage
-FROM node:20-alpine AS runtime
+ENV PORT=4300
+EXPOSE 4300
 
-ENV NODE_ENV=production
-WORKDIR /app
-
-RUN addgroup -S app && adduser -S app -G app
-
-COPY --from=builder /app /app
-
-RUN apk add --no-cache curl
-
-EXPOSE 4100
-
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=5 \
-  CMD curl -fsS http://localhost:4100/health || exit 1
-
-USER app
-
-CMD ["node", "src/server.js"]
+CMD ["npm", "start"]
