@@ -1,0 +1,15 @@
+{
+  "name": "bot-ayuda",
+  "version": "1.0.0",
+  "description": "Microservicio bot de ayuda usando OpenAI",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.19.0",
+    "openai": "^4.0.0",
+    "cors": "^2.8.5"
+  }
+}

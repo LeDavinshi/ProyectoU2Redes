@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   frontend-admin-1:
     build: ./frontend/frontendmain
@@ -185,7 +183,16 @@ services:
     depends_on:
       mysql-master:
         condition: service_healthy
-
+  bot:
+    build: ./microservicios/bot
+    container_name: bot-service
+    ports:
+      - "4500:4500"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - PORT=4500
+    networks:
+      - app-net
 networks:
   app-net:
     driver: bridge
@@ -196,3 +203,4 @@ networks:
 volumes:
   mysql_master_data:
   mysql_replica_data:
+
