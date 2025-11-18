@@ -149,10 +149,10 @@ services:
     image: mariadb:10.11
     container_name: mysql-master
     environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - MYSQL_DATABASE=${DB_NAME}
-      - MYSQL_USER=${DB_USER}
-      - MYSQL_PASSWORD=${DB_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=gestion_personal
+      - MYSQL_USER=admin
+      - MYSQL_PASSWORD=admin123
     ports:
       - "3306:3306"
     volumes:
@@ -172,8 +172,8 @@ services:
     image: mariadb:10.11
     container_name: mysql-replica
     environment:
-      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-      - MYSQL_DATABASE=${DB_NAME}
+      - MYSQL_ROOT_PASSWORD=rootpassword
+      - MYSQL_DATABASE=gestion_personal
     ports:
       - "3307:3306"
     volumes:
