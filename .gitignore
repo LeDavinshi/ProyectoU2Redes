@@ -1,0 +1,47 @@
+# =========================
+# Node / Frontend
+# =========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Builds de frontend / backend
+dist/
+build/
+.cache/
+.next/
+out/
+
+# =========================
+# Variables de entorno
+# =========================
+.env
+.env.local
+.env.*.local
+
+# =========================
+# Logs
+# =========================
+*.log
+logs/
+npm-cache/
+coverage/
+
+# =========================
+# Sistema operativo / IDE
+# =========================
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# =========================
+# Docker / temporales
+# =========================
+*.pid
