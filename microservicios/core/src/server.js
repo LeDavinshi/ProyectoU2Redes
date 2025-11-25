@@ -24,6 +24,17 @@ const pool = mysql.createPool({
   queueLimit: 0,
 });
 
+
+// --- Password helpers ---
+function isStrongPassword(password) {
+  return (
+    password.length >= 12 &&
+    /[A-Z]/.test(password) &&
+    /[a-z]/.test(password) &&
+    /[0-9]/.test(password)
+  );
+}
+
 // --- Auth helpers (simple) ---
 async function getUserById(userId) {
   const [rows] = await pool.query(
@@ -95,6 +106,11 @@ app.post('/usuarios', requireAuth, requireRole('Administrador'), async (req, res
   try {
     const { rut, email, password, perfil = 'Funcionario', activo = true } = req.body || {};
     if (!rut || !email || !password) return res.status(400).json({ error: 'rut, email y password son requeridos' });
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({
+        error: 'La contraseña debe tener al menos 12 caracteres, con mayúsculas, minúsculas y al menos un número.',
+      });
+    }
     const hash = await bcrypt.hash(String(password), 10);
     const [result] = await pool.query(
       'INSERT INTO Usuarios (rut, email, contrasena, perfil, activo) VALUES (?, ?, ?, ?, ?)',
@@ -119,9 +135,14 @@ app.put('/usuarios/:id', requireAuth, requireRole('Administrador'), async (req, 
     if (perfil !== undefined) { fields.push('perfil = ?'); values.push(perfil); }
     if (activo !== undefined) { fields.push('activo = ?'); values.push(activo ? 1 : 0); }
     if (password !== undefined) {
-      const hash = await bcrypt.hash(String(password), 10);
-      fields.push('contrasena = ?'); values.push(hash);
-    }
+  if (!isStrongPassword(password)) {
+    return res.status(400).json({
+      error: 'La contraseña debe tener al menos 12 caracteres, con mayúsculas, minúsculas y al menos un número.',
+    });
+  }
+  const hash = await bcrypt.hash(String(password), 10);
+  fields.push('contrasena = ?'); values.push(hash);
+}
     if (fields.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' });
     values.push(id);
     const [result] = await pool.query(`UPDATE Usuarios SET ${fields.join(', ')} WHERE id = ?`, values);
