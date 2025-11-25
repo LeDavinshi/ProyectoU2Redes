@@ -1,3 +1,5 @@
+version: "3.9"
+
 services:
   frontend-admin-1:
     build: ./frontend/frontendmain
@@ -165,6 +167,23 @@ services:
       timeout: 30s
       retries: 10
       start_period: 60s
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - DAC_OVERRIDE
+      - CHOWN
+      - SETUID
+      - SETGID
+    mem_limit: 512M
+    cpus: 0.5
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
 
   mysql-replica:
     image: mariadb:10.11
@@ -183,16 +202,24 @@ services:
     depends_on:
       mysql-master:
         condition: service_healthy
-  bot:
-    build: ./microservicios/bot
-    container_name: bot-service
-    ports:
-      - "4500:4500"
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - PORT=4500
-    networks:
-      - app-net
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - DAC_OVERRIDE
+      - CHOWN
+      - SETUID
+      - SETGID
+    mem_limit: 512M
+    cpus: 0.5
+    restart: unless-stopped
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
 networks:
   app-net:
     driver: bridge
@@ -203,4 +230,3 @@ networks:
 volumes:
   mysql_master_data:
   mysql_replica_data:
-
