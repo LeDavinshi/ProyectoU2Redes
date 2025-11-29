@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import mysql from 'mysql2/promise';
 import axios from 'axios';
+import { collectDefaultMetrics, Gauge, Counter, register } from 'prom-client';
 
 dotenv.config();
 
@@ -12,6 +13,34 @@ app.use(express.json());
 
 const PORT = +(process.env.PORT || 4400);
 const POLL_INTERVAL_MS = +(process.env.POLL_INTERVAL_MS || 10000);
+
+// Initialize Prometheus metrics
+collectDefaultMetrics();
+
+// Custom metrics
+const serviceStatus = new Gauge({
+  name: 'service_status',
+  help: 'Status of monitored services (0=down, 1=up, 2=degraded, 3=unknown)',
+  labelNames: ['service']
+});
+
+const serviceResponseTime = new Gauge({
+  name: 'service_response_time_ms',
+  help: 'Response time of monitored services in milliseconds',
+  labelNames: ['service']
+});
+
+const serviceDbStatus = new Gauge({
+  name: 'service_db_status',
+  help: 'Database status of monitored services (0=down, 1=up)',
+  labelNames: ['service']
+});
+
+const serviceErrorCounter = new Counter({
+  name: 'service_errors_total',
+  help: 'Total number of errors by service',
+  labelNames: ['service', 'type']
+});
 
 // MySQL pool
 const pool = mysql.createPool({
@@ -58,6 +87,13 @@ async function checkService(target) {
     const status = (body.status === 'ok' || res.status === 200) ? 'up' : 'degraded';
     const db_ok = typeof body.db === 'boolean' ? body.db : null;
 
+    // Update metrics
+    serviceStatus.set({ service: target.nombre }, status === 'up' ? 1 : status === 'degraded' ? 2 : 0);
+    serviceResponseTime.set({ service: target.nombre }, duration);
+    if (db_ok !== null) {
+      serviceDbStatus.set({ service: target.nombre }, db_ok ? 1 : 0);
+    }
+
     latest.set(target.nombre, { status, db_ok, response_time_ms: duration, checked_at: new Date().toISOString() });
 
     await pool.query(
@@ -66,6 +102,9 @@ async function checkService(target) {
     );
   } catch (err) {
     const duration = Date.now() - started;
+    serviceStatus.set({ service: target.nombre }, 0); // 0 = down
+    serviceErrorCounter.inc({ service: target.nombre, type: err.code || 'unknown' });
+    
     latest.set(target.nombre, { status: 'down', db_ok: null, response_time_ms: duration, checked_at: new Date().toISOString(), error: String(err) });
     await pool.query(
       'INSERT INTO MonitoreoServicios (servicio, url, status, db_ok, response_time_ms) VALUES (?, ?, ?, ?, ?)',
@@ -90,6 +129,17 @@ app.get('/health', async (_req, res) => {
     res.json({ status: 'ok', db: rows[0]?.ok === 1, service: 'registros', timestamp: new Date().toISOString() });
   } catch (err) {
     res.status(500).json({ status: 'error', error: String(err) });
+  }
+});
+
+// Prometheus metrics endpoint
+app.get('/metrics', async (_req, res) => {
+  try {
+    res.set('Content-Type', register.contentType);
+    const metrics = await register.metrics();
+    res.end(metrics);
+  } catch (err) {
+    res.status(500).end('Error generating metrics: ' + err);
   }
 });
 
