@@ -6,3 +6,5 @@ docker scout cves proyectou2redes-frontend-funcionario-1:latest > reports/fronte
 docker scout cves proyectou2redes-frontend-funcionario-2:latest > reports/frontend_funcionario_2_vulnerabilities.txt
 docker scout cves proyectou2redes-documentacion:latest > reports/documentacion_vulnerabilities.txt
 docker scout cves proyectou2redes-registros:latest > reports/registros_vulnerabilities.txt
+
+docker scout cves proyectou2redes-auth:latest > reports/auth_vulnerabilities_after.txt

@@ -1,5 +1,5 @@
 ### Build stage
-FROM node:20-alpine AS builder
+FROM node:22-alpine3.21 AS builder
 
 WORKDIR /app
 
@@ -15,7 +15,7 @@ RUN \
 COPY src ./src
 
 ### Runtime stage
-FROM node:20-alpine AS runtime
+FROM node:22-alpine3.21 AS runtime
 
 ENV NODE_ENV=production
 WORKDIR /app
