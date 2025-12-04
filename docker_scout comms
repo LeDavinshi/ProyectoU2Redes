@@ -8,3 +8,4 @@ docker scout cves proyectou2redes-documentacion:latest > reports/documentacion_v
 docker scout cves proyectou2redes-registros:latest > reports/registros_vulnerabilities.txt
 
 docker scout cves proyectou2redes-auth:latest > reports/auth_vulnerabilities_after.txt
+docker scout cves proyectou2redes-core:latest > reports/core_vulnerabilities_after.txt
