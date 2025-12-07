@@ -1,3 +1,6 @@
+const CORE_URL = import.meta.env.VITE_CORE_URL ?? 'http://localhost:4200';
+const DOCS_URL = import.meta.env.VITE_DOCS_URL ?? 'http://localhost:4300';
+
 export function setUser(user) {
   try {
     localStorage.setItem('user', JSON.stringify(user));
@@ -24,7 +27,6 @@ export function isAdmin() {
   return !!u && u.perfil === 'Administrador';
 }
 
-// Roles y permisos básicos. Ajustar según necesidades futuras.
 const PERMISSIONS = {
   Administrador: new Set([
     'usuarios:list',
@@ -55,17 +57,16 @@ export function can(action) {
   return !!set && set.has(action);
 }
 
-// Helper for calling core service with x-user-id header
 export async function coreFetch(path, options = {}) {
   const u = getUser();
   const headers = new Headers(options.headers || {});
   if (u?.id) headers.set('x-user-id', String(u.id));
-  return fetch(`http://localhost:4200${path}`, { ...options, headers });
+  return fetch(`${CORE_URL}${path}`, { ...options, headers, credentials: 'include' });
 }
 
 export async function docsFetch(path, options = {}) {
   const u = getUser();
   const headers = new Headers(options.headers || {});
   if (u?.id) headers.set('x-user-id', String(u.id));
-  return fetch(`http://localhost:4300${path}`, { ...options, headers });
+  return fetch(`${DOCS_URL}${path}`, { ...options, headers, credentials: 'include' });
 }
