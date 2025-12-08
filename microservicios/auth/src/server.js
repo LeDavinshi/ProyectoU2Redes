@@ -52,20 +52,35 @@ app.use(helmet());
 app.use(xss());
 app.use(hpp());
 
-// CORS: lista de orígenes permitidos desde la variable de entorno o valores por defecto para desarrollo
-const allowed = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:3001').split(',').map(s => s.trim());
-app.use(cors({
+// CORS configuration
+const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost,https://localhost,http://localhost:3000,https://localhost:3000,http://localhost:3001,https://localhost:3001,http://localhost:8080,https://localhost:8080').split(',').map(s => s.trim());
+
+const corsOptions = {
   origin: function (origin, callback) {
     // permitir peticiones sin origen (p. ej. curl, apps móviles)
     if (!origin) return callback(null, true);
-    if (allowed.indexOf(origin) !== -1) {
+    
+    // Check if origin is in allowed origins
+    if (allowedOrigins.includes(origin) || 
+        allowedOrigins.some(allowed => origin.startsWith(allowed) && origin.endsWith('.localhost'))) {
       return callback(null, true);
-    } else {
-      return callback(new Error('Not allowed by CORS'));
     }
+    
+    console.log('CORS blocked for origin:', origin);
+    return callback(new Error('Not allowed by CORS'));
   },
   credentials: true,
-}));
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Content-Length', 'X-Foo', 'X-Bar'],
+  maxAge: 86400 // 24 hours
+};
+
+// Enable CORS for all routes
+app.use(cors(corsOptions));
+
+// Handle preflight requests
+app.options('*', cors(corsOptions));
 
 // Parseo del cuerpo de la petición con límites configurables
 app.use(express.json({ limit: process.env.REQUEST_BODY_LIMIT || '10kb' }));
