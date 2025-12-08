@@ -65,7 +65,9 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=4000
-      - JWT_SECRET=${JWT_SECRET:-change-me}
+      # IMPORTANT: configure a strong JWT_SECRET in your environment or .env file.
+      # Do NOT leave the default value in production. Example: create a .env with JWT_SECRET=<long-random-value>
+      - JWT_SECRET=${JWT_SECRET}
       - DB_HOST=${DB_HOST:-mysql-master}
       - DB_PORT=${DB_PORT:-3306}
       - DB_USER=${DB_USER:-admin}

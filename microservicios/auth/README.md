@@ -48,3 +48,51 @@ docker compose up -d --build auth frontend-admin frontend-funcionario
     ```
 
 Ajusta `DB_HOST`, `DB_USER`, `DB_PASSWORD`, `DB_NAME` según tu entorno.
+
+    ## Security hardening (changes)
+
+    Se implementaron las siguientes mejoras al servicio para reducir la superficie de ataque y aumentar la seguridad de las implementaciones en producción:
+
+- Código de la aplicación
+- Se añadieron middlewares de seguridad: `helmet`, `xss-clean`, `hpp`.
+- Se añadieron límites de tamaño de solicitud (`REQUEST_BODY_LIMIT`) para mitigar ataques de gran carga útil.
+- Se añadió limitación de velocidad (`express-rate-limit`) con ventana configurable y número máximo de solicitudes.
+- Se implementó la firma JWT para las respuestas de autenticación (`JWT_SECRET`, `JWT_EXPIRES`).
+- Gestión de errores más segura (evitando la filtración de errores internos a los clientes).
+- Validación básica del entorno en `src/server.js` para que falle rápidamente cuando faltan secretos críticos en producción.
+
+- Imagen de Docker
+- Compilación multietapa: las dependencias de producción se instalan en la etapa de compilación; la imagen en tiempo de ejecución solo contiene lo necesario.
+- `NODE_ENV=production` se configura con antelación para instalaciones y optimizaciones correctas. - Se creó un usuario no root (uid `app` `1000`) y los archivos se copiaron con `--chown` para evitar problemas de permisos.
+- Se incluye una comprobación de estado ligera que se ejecuta como usuario `app`.
+
+- Entorno
+- Se actualizó `.env.example` con las nuevas variables: `JWT_SECRET`, `JWT_EXPIRES`, `REQUEST_BODY_LIMIT`, `RATE_LIMIT_WINDOW_MINUTES`, `RATE_LIMIT_MAX`, `COURSE_ORIGINS`, `DB_CONN_LIMIT`, `DB_CONNECT_TIMEOUT_MS`.
+
+## Cómo compilar y verificar (PowerShell)
+
+Desde la raíz del repositorio:
+```powershell
+cd 'c:\Users\juanm\Documents\GitHub\ProjectU2Networks'
+docker compose build auth
+docker compose up -d auth
+# Espere unos segundos y luego pruebe el estado
+curl http://localhost:4000/health
+```
+
+Si prefiere ejecutar sin Docker:
+```powershell
+cd microservices\auth
+npm install
+npm run dev
+# then: http://localhost:4000/health
+```
+
+## Recomendaciones y próximos pasos
+
+- Rotar `JWT_SECRET` en producción y almacenarlo en un gestor de secretos (Vault, AWS Secrets Manager, etc.).
+- Ejecutar `npm audit` e incorporar el análisis de dependencias en CI (p. ej., Trivy, Snyk).
+
+- Considere trasladar la imagen de ejecución a una base más pequeña y sin distribución si es operativamente aceptable.
+- Ejecute contenedores con un sistema de archivos raíz de solo lectura siempre que sea posible y monte volúmenes con permisos de escritura explícitamente.
+- Agregue pruebas de integración para flujos de autenticación y comprobaciones de estado automatizadas en CI.
