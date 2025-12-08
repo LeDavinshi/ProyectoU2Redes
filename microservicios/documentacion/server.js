@@ -5,17 +5,49 @@ import multer from 'multer'
 import fs from 'fs'
 import path from 'path'
 import mysql from 'mysql2/promise'
+import helmet from 'helmet'
+import xss from 'xss-clean'
+import hpp from 'hpp'
+import rateLimit from 'express-rate-limit'
 
 const app = express()
-app.use(cors())
+
+// Security middlewares
+app.use(helmet())
+app.use(xss())
+app.use(hpp())
+
+// Rate limiter (configurable via env)
+const RATE_WINDOW_MS = parseInt(process.env.RATE_WINDOW_MS || String(15 * 60 * 1000), 10)
+const RATE_MAX = parseInt(process.env.RATE_MAX || '100', 10)
+app.use(rateLimit({ windowMs: RATE_WINDOW_MS, max: RATE_MAX }))
+
+// CORS allowlist support
+const rawOrigins = process.env.CORS_ORIGINS || ''
+const allowlist = rawOrigins ? rawOrigins.split(',').map(s=>s.trim()).filter(Boolean) : null
+app.use(cors({ origin: (origin, cb) => {
+  if (!allowlist || !origin) return cb(null, true)
+  return allowlist.includes(origin) ? cb(null, true) : cb(new Error('CORS not allowed'))
+}}))
+
 app.use(express.json({ limit: '10mb' }))
+app.use(express.urlencoded({ extended: true, limit: '10mb' }))
 app.use(morgan('dev'))
 
 const PORT = parseInt(process.env.PORT || '4300', 10)
 const DB_HOST = process.env.DB_HOST || 'mysql-master'
 const DB_PORT = parseInt(process.env.DB_PORT || '3306', 10)
 const DB_USER = process.env.DB_USER || 'admin'
-const DB_PASSWORD = process.env.DB_PASSWORD || 'admin123'
+function readSecretFromFile(envVar){
+  try {
+    if (!envVar) return null
+    if (!fs.existsSync(envVar)) return null
+    const v = fs.readFileSync(envVar, 'utf8').trim()
+    return v || null
+  } catch (e){ return null }
+}
+
+const DB_PASSWORD = process.env.DB_PASSWORD || readSecretFromFile(process.env.DB_PASSWORD_FILE) || 'admin123'
 const DB_NAME = process.env.DB_NAME || 'gestion_personal'
 
 const pool = mysql.createPool({ host: DB_HOST, port: DB_PORT, user: DB_USER, password: DB_PASSWORD, database: DB_NAME, connectionLimit: 10 })
@@ -51,12 +83,15 @@ function requireRole(...roles){
 // Almacenamiento de archivos
 const uploadDir = path.join(process.cwd(), 'uploads')
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true })
+import crypto from 'crypto'
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
     const ts = Date.now()
-    const safe = file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')
-    cb(null, `${ts}-${safe}`)
+    const rnd = crypto.randomBytes(6).toString('hex')
+    const safe = (file.originalname || 'file').replace(/[^a-zA-Z0-9._-]/g, '_')
+    cb(null, `${ts}-${rnd}-${safe}`)
   }
 })
 // Tipos permitidos por contexto del proyecto (ajustable): PDF
@@ -72,8 +107,18 @@ const upload = multer({
   }
 })
 
-// Health
-app.get('/health', (req,res)=> res.json({ ok:true }))
+// Health (check DB connectivity when possible)
+app.get('/health', async (req, res) => {
+  const out = { status: 'ok' }
+  try {
+    await pool.query('SELECT 1')
+    out.db = true
+  } catch (e) {
+    out.db = false
+    out.detail = String(e)
+  }
+  res.json(out)
+})
 
 // DOCUMENTOS
 app.get('/documentos', requireAuth, requireRole('Administrador', 'Jefe'), async (req, res) => {
@@ -172,8 +217,9 @@ app.delete('/documentos/:id', requireAuth, requireRole('Administrador', 'Jefe'),
 
     // Intentar eliminar archivo si está dentro de uploads
     try {
-      const abs = path.isAbsolute(ruta) ? ruta : path.join(process.cwd(), ruta)
-      if (abs.startsWith(uploadDir) && fs.existsSync(abs)) fs.unlinkSync(abs)
+      const abs = path.isAbsolute(ruta) ? path.resolve(ruta) : path.resolve(process.cwd(), ruta)
+      const uploadDirAbs = path.resolve(uploadDir)
+      if (abs.startsWith(uploadDirAbs) && fs.existsSync(abs)) fs.unlinkSync(abs)
     } catch {}
 
     return res.json({ ok: true })
@@ -251,6 +297,20 @@ app.delete('/formatos/:id', requireAuth, requireRole('Administrador', 'Jefe'), a
     return res.json({ ok: true })
   } catch (e) {
     return res.status(500).json({ error: 'Error eliminando formato', detail: String(e) })
+  }
+})
+
+// Generic error handler
+app.use((err, req, res, next) => {
+  try {
+    if (!err) return next()
+    if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'Archivo demasiado grande' })
+    if (err instanceof multer.MulterError) return res.status(400).json({ error: err.message })
+    console.error(err)
+    return res.status(500).json({ error: 'Error del servidor', detail: String(err) })
+  } catch (e) {
+    console.error('Error in error-handler', e)
+    return res.status(500).json({ error: 'Error desconocido' })
   }
 })
 
