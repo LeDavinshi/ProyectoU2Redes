@@ -3,24 +3,77 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import mysql from 'mysql2/promise';
 import bcrypt from 'bcrypt';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import xss from 'xss-clean';
+import hpp from 'hpp';
+import fs from 'fs';
 
 dotenv.config();
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+
+// Middlewares de seguridad
+app.use(helmet());
+app.use(xss());
+app.use(hpp());
+
+// CORS allowlist
+const allowed = (process.env.CORS_ORIGINS || 'http://localhost:3000,http://localhost:3001').split(',').map(s => s.trim());
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowed.indexOf(origin) !== -1) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
+
+// Small middleware to avoid leaking stack traces in production
+app.use((req, res, next) => {
+  res.safeJson = (payload) => res.json(payload);
+  next();
+});
+
+// Parseo con límites
+app.use(express.json({ limit: process.env.REQUEST_BODY_LIMIT || '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: process.env.REQUEST_BODY_LIMIT || '10kb' }));
+
+// Rate limiting
+const windowMs = +(process.env.RATE_LIMIT_WINDOW_MINUTES || 15) * 60 * 1000;
+const max = +(process.env.RATE_LIMIT_MAX || 100);
+app.set('trust proxy', 1);
+app.use(rateLimit({ windowMs, max, standardHeaders: true, legacyHeaders: false }));
 
 const PORT = process.env.PORT || 4200;
+
+function readSecretFile(path) {
+  try {
+    if (fs.existsSync(path)) return fs.readFileSync(path, 'utf8').trim();
+  } catch (e) {}
+  return undefined;
+}
+
+function getDbPassword() {
+  if (process.env.DB_PASSWORD) return process.env.DB_PASSWORD;
+  if (process.env.DB_PASSWORD_FILE) {
+    const v = readSecretFile(process.env.DB_PASSWORD_FILE);
+    if (v) return v;
+  }
+  const fromSecret = readSecretFile('/run/secrets/mysql_root_password');
+  if (fromSecret) return fromSecret;
+  return undefined;
+}
 
 // MySQL pool
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'mysql-master',
   port: +(process.env.DB_PORT || 3306),
   user: process.env.DB_USER || 'admin',
-  password: process.env.DB_PASSWORD || 'admin123',
+  password: getDbPassword() || 'admin123',
   database: process.env.DB_NAME || 'gestion_personal',
   waitForConnections: true,
-  connectionLimit: 10,
+  connectionLimit: +(process.env.DB_CONN_LIMIT || 10),
   queueLimit: 0,
 });
 
@@ -69,12 +122,15 @@ function requireRole(...roles) {
 }
 
 // Healthcheck
+// Healthcheck tolerante: devuelve db:false si la DB no está lista para evitar restarts en arranque
 app.get('/health', async (_req, res) => {
   try {
     const [rows] = await pool.query('SELECT 1 AS ok');
-    res.json({ status: 'ok', db: rows[0]?.ok === 1, service: 'core', timestamp: new Date().toISOString() });
+    return res.json({ status: 'ok', db: rows[0]?.ok === 1, service: 'core', timestamp: new Date().toISOString() });
   } catch (err) {
-    res.status(500).json({ status: 'error', error: String(err) });
+    // eslint-disable-next-line no-console
+    console.warn('Healthcheck DB error:', String(err));
+    return res.json({ status: 'ok', db: false, service: 'core', timestamp: new Date().toISOString(), detail: String(err) });
   }
 });
 

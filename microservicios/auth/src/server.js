@@ -8,20 +8,42 @@ import rateLimit from 'express-rate-limit';
 import xss from 'xss-clean';
 import hpp from 'hpp';
 import jwt from 'jsonwebtoken';
+import fs from 'fs';
 
 dotenv.config();
 
 const app = express();
 
 // Validación básica de entorno (fallar rápido en producción si faltan secretos críticos)
-const REQUIRED_ENVS = ['JWT_SECRET'];
-if (process.env.NODE_ENV === 'production') {
-  for (const key of REQUIRED_ENVS) {
-    if (!process.env[key]) {
-      // eslint-disable-next-line no-console
-      console.error(`Missing required environment variable: ${key}`);
-      process.exit(1);
+function readSecretFile(path) {
+  try {
+    if (fs.existsSync(path)) {
+      return fs.readFileSync(path, 'utf8').trim();
     }
+  } catch (e) {
+    // ignore, will handle absence later
+  }
+  return undefined;
+}
+
+function getJwtSecret() {
+  // Prefer env var, then user-provided JWT_SECRET_FILE, then docker secret path
+  if (process.env.JWT_SECRET) return process.env.JWT_SECRET;
+  if (process.env.JWT_SECRET_FILE) {
+    const v = readSecretFile(process.env.JWT_SECRET_FILE);
+    if (v) return v;
+  }
+  const fromSecret = readSecretFile('/run/secrets/jwt_secret');
+  if (fromSecret) return fromSecret;
+  return undefined;
+}
+
+if (process.env.NODE_ENV === 'production') {
+  const jwtSecret = getJwtSecret();
+  if (!jwtSecret) {
+    // eslint-disable-next-line no-console
+    console.error('Missing required JWT secret (set JWT_SECRET or mount /run/secrets/jwt_secret)');
+    process.exit(1);
   }
 }
 
@@ -87,7 +109,7 @@ app.get('/health', async (_req, res) => {
 
 // Función auxiliar: firmar un JWT
 function signToken(payload) {
-  const secret = process.env.JWT_SECRET || 'change-me';
+  const secret = getJwtSecret() || 'change-me';
   const expiresIn = process.env.JWT_EXPIRES || '1h';
   return jwt.sign(payload, secret, { expiresIn });
 }

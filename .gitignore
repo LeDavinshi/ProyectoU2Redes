@@ -52,3 +52,7 @@ nginx/ssl/
 *.pem
 *.crt
 *.csr
+
+# Secret files (samples are allowed, real secrets must not be committed)
+secrets/*.txt
+!secrets/*.txt.sample

@@ -90,9 +90,20 @@ npm run dev
 
 ## Recomendaciones y próximos pasos
 
-- Rotar `JWT_SECRET` en producción y almacenarlo en un gestor de secretos (Vault, AWS Secrets Manager, etc.).
-- Ejecutar `npm audit` e incorporar el análisis de dependencias en CI (p. ej., Trivy, Snyk).
-
-- Considere trasladar la imagen de ejecución a una base más pequeña y sin distribución si es operativamente aceptable.
-- Ejecute contenedores con un sistema de archivos raíz de solo lectura siempre que sea posible y monte volúmenes con permisos de escritura explícitamente.
 - Agregue pruebas de integración para flujos de autenticación y comprobaciones de estado automatizadas en CI.
+## Usando secretos con Docker Compose
+
+Este repositorio proporciona archivos de secretos de muestra en `./secrets/*.txt.sample`. Para pruebas locales, puede copiarlos y rellenar valores reales:
+
+```powershell
+# desde la raíz del repositorio
+cp .\secrets\jwt_secret.txt.sample .\secrets\jwt_secret.txt
+cp .\secrets\mysql_root_password.txt.sample .\secrets\mysql_root_password.txt
+# Edite los archivos y establezca secretos fuertes
+```
+
+Cuando ejecute `docker compose up`, los secretos declarados se montarán en los servicios en `/run/secrets/<nombre>`.
+
+Notas:
+- El servicio `auth` lee `JWT_SECRET` de `process.env.JWT_SECRET` o de `/run/secrets/jwt_secret` (preferido para producción).
+- Para producción, utilice un gestor de secretos adecuado o secretos de Docker Swarm/Kubernetes en lugar de comprometer archivos secretos en disco.
