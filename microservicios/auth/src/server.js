@@ -53,7 +53,7 @@ app.use(xss());
 app.use(hpp());
 
 // CORS configuration
-const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost,https://localhost,http://localhost:3000,https://localhost:3000,http://localhost:3001,https://localhost:3001,http://localhost:8080,https://localhost:8080').split(',').map(s => s.trim());
+const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost,https://localhost,http://localhost:3000,https://localhost:3000,http://localhost:3001,https://localhost:3001,http://localhost:8080,https://localhost:8080,https://localhost:4000,https://localhost:444').split(',').map(s => s.trim());
 
 const corsOptions = {
   origin: function (origin, callback) {
