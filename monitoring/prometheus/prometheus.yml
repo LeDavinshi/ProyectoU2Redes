@@ -1,0 +1,58 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  scrape_timeout: 10s
+
+scrape_configs:
+  # Registros service - working
+  - job_name: 'registros'
+    static_configs:
+      - targets: ['registros:4400']
+    metrics_path: '/metrics'
+    scheme: http
+
+  # Auth service - needs metrics endpoint
+  - job_name: 'auth'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['auth:4000']
+    scheme: http
+    # If auth service doesn't expose metrics, we can remove this target
+    # or add a custom metrics endpoint
+
+  # Core service - needs metrics endpoint
+  - job_name: 'core'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['core:4200']
+    scheme: http
+    # Consider adding a health check endpoint instead if metrics aren't available
+
+  # Documentacion service - needs metrics endpoint
+  - job_name: 'documentacion'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['documentacion:4300']
+    scheme: http
+    # Consider adding a health check endpoint instead if metrics aren't available
+
+  # MySQL Exporter - fixed with network change
+  - job_name: 'mysql'
+    static_configs:
+      - targets: ['mysql-exporter:9104']
+    metrics_path: '/metrics'
+    scheme: http
+
+  # Node Exporter - working
+  - job_name: 'node_exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+    metrics_path: '/metrics'
+    scheme: http
+
+  # cAdvisor - working
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['cadvisor:8080']
+    metrics_path: '/metrics'
+    scheme: http

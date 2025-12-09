@@ -1,0 +1,11 @@
+docker scout cves proyectou2redes-auth:latest > reports/auth_vulnerabilities.txt
+docker scout cves proyectou2redes-core:latest > reports/core_vulnerabilities.txt
+docker scout cves proyectou2redes-frontend-admin-1:latest > reports/frontend_admin_1_vulnerabilities.txt
+docker scout cves proyectou2redes-frontend-admin-2:latest > reports/frontend_admin_2_vulnerabilities.txt
+docker scout cves proyectou2redes-frontend-funcionario-1:latest > reports/frontend_funcionario_1_vulnerabilities.txt
+docker scout cves proyectou2redes-frontend-funcionario-2:latest > reports/frontend_funcionario_2_vulnerabilities.txt
+docker scout cves proyectou2redes-documentacion:latest > reports/documentacion_vulnerabilities.txt
+docker scout cves proyectou2redes-registros:latest > reports/registros_vulnerabilities.txt
+
+docker scout cves proyectou2redes-auth:latest > reports/auth_vulnerabilities_after.txt
+docker scout cves proyectou2redes-core:latest > reports/core_vulnerabilities_after.txt

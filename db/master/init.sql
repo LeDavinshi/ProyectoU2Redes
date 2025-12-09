@@ -9,6 +9,10 @@ SET SESSION sql_log_bin = 0;
 -- Crear usuario para replicación (no escribir en binlog)
 CREATE USER IF NOT EXISTS 'replicador'@'%' IDENTIFIED BY 'replica_password';
 GRANT REPLICATION SLAVE ON *.* TO 'replicador'@'%';
+
+-- Crear usuario para el exporter de métricas
+CREATE USER IF NOT EXISTS 'exporter'@'%' IDENTIFIED BY 'exporterpass';
+GRANT PROCESS, REPLICATION CLIENT, SELECT ON *.* TO 'exporter'@'%';
 FLUSH PRIVILEGES;
 
 -- Tabla de Usuarios

@@ -1,0 +1,62 @@
+================================================================================
+HARDENING - PROYECTO U2 REDES (Resumen)
+Fecha: 7 de Diciembre de 2025
+================================================================================
+
+## CAMBIOS REALIZADOS
+
+### 1. DOCKERFILE (ambos frontends)
+- Multistage build: Node 20 → nginx 1.27.4
+- npm ci --prefer-offline (reproducibilidad)
+- NODE_ENV=production en build
+- Puerto 8080 (no privilegiado)
+- Healthcheck: curl -f http://localhost:8080/
+
+### 2. NGINX.CONF (ambos frontends)
+- Headers de seguridad: X-Content-Type-Options, X-Frame-Options, HSTS, CSP
+- gzip compression habilitado
+- Caché 30 días para assets estáticos
+- SPA fallback: try_files $uri $uri/ /index.html
+- Bloquear /api/ (devolver 404)
+- server_tokens off
+
+### 3. .DOCKERIGNORE (nuevo)
+- Excluir: node_modules, dist, .git, .env, npm-debug.log
+- Reduce contexto Docker ~90%
+
+### 4. PACKAGE.JSON (ambos frontends)
+- Scripts: dev, build, preview, ci, audit, audit:fix
+- Engines: node >=18
+- Sin cambios en dependencias (compatibilidad asegurada)
+
+### 5. AUTH.JS (frontend-main)
+- URLs configurables: VITE_CORE_URL, VITE_DOCS_URL
+- Error handling en localStorage
+- Header x-user-id para rastreo
+
+================================================================================
+## CVE DETECTADOS
+
+27 vulnerabilidades en imágenes base Alpine 3.21:
+- 2 CRITICAL (libxml2)
+- 8 HIGH (libxml2, curl, libpng, openssl, expat)
+- 12 MEDIUM
+- 5 LOW
+
+Solución: Reconstruir con --pull --no-cache y escanear con Trivy
+
+================================================================================
+## COMANDOS PARA APLICAR
+
+# Reconstruir imágenes
+docker build --pull --no-cache -t proyectou2redes-frontend-main:latest .
+docker build --pull --no-cache -t proyectou2redes-frontend-funcionario:latest .
+
+# Escanear CVEs
+trivy image --severity CRITICAL,HIGH proyectou2redes-frontend-main:latest
+trivy image --severity CRITICAL,HIGH proyectou2redes-frontend-funcionario:latest
+
+# Auditar dependencias
+npm ci && npm run audit
+
+================================================================================

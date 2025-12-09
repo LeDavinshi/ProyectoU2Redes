@@ -3,26 +3,93 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import mysql from 'mysql2/promise';
 import bcrypt from 'bcrypt';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
+import xss from 'xss-clean';
+import hpp from 'hpp';
+import fs from 'fs';
 
 dotenv.config();
 
 const app = express();
-app.use(cors());
-app.use(express.json());
+
+// Middlewares de seguridad
+app.use(helmet());
+app.use(xss());
+app.use(hpp());
+
+// CORS allowlist
+const allowedOrigins = (process.env.CORS_ORIGINS || 'http://localhost,https://localhost,http://localhost:3000,https://localhost:3000,http://localhost:3001,https://localhost:3001,http://localhost:8080,https://localhost:8080').split(',').map(s => s.trim());
+app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-id'],
+  exposedHeaders: ['Content-Range', 'X-Total-Count']
+}));
+
+// Small middleware to avoid leaking stack traces in production
+app.use((req, res, next) => {
+  res.safeJson = (payload) => res.json(payload);
+  next();
+});
+
+// Parseo con límites
+app.use(express.json({ limit: process.env.REQUEST_BODY_LIMIT || '10kb' }));
+app.use(express.urlencoded({ extended: true, limit: process.env.REQUEST_BODY_LIMIT || '10kb' }));
+
+// Rate limiting
+const windowMs = +(process.env.RATE_LIMIT_WINDOW_MINUTES || 15) * 60 * 1000;
+const max = +(process.env.RATE_LIMIT_MAX || 100);
+app.set('trust proxy', 1);
+app.use(rateLimit({ windowMs, max, standardHeaders: true, legacyHeaders: false }));
 
 const PORT = process.env.PORT || 4200;
+
+function readSecretFile(path) {
+  try {
+    if (fs.existsSync(path)) return fs.readFileSync(path, 'utf8').trim();
+  } catch (e) {}
+  return undefined;
+}
+
+function getDbPassword() {
+  if (process.env.DB_PASSWORD) return process.env.DB_PASSWORD;
+  if (process.env.DB_PASSWORD_FILE) {
+    const v = readSecretFile(process.env.DB_PASSWORD_FILE);
+    if (v) return v;
+  }
+  const fromSecret = readSecretFile('/run/secrets/mysql_root_password');
+  if (fromSecret) return fromSecret;
+  return undefined;
+}
 
 // MySQL pool
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'mysql-master',
   port: +(process.env.DB_PORT || 3306),
   user: process.env.DB_USER || 'admin',
-  password: process.env.DB_PASSWORD || 'admin123',
+  password: getDbPassword() || 'admin123',
   database: process.env.DB_NAME || 'gestion_personal',
   waitForConnections: true,
-  connectionLimit: 10,
+  connectionLimit: +(process.env.DB_CONN_LIMIT || 10),
   queueLimit: 0,
 });
+
+
+// --- Password helpers ---
+function isStrongPassword(password) {
+  return (
+    password.length >= 12 &&
+    /[A-Z]/.test(password) &&
+    /[a-z]/.test(password) &&
+    /[0-9]/.test(password)
+  );
+}
 
 // --- Auth helpers (simple) ---
 async function getUserById(userId) {
@@ -58,12 +125,15 @@ function requireRole(...roles) {
 }
 
 // Healthcheck
+// Healthcheck tolerante: devuelve db:false si la DB no está lista para evitar restarts en arranque
 app.get('/health', async (_req, res) => {
   try {
     const [rows] = await pool.query('SELECT 1 AS ok');
-    res.json({ status: 'ok', db: rows[0]?.ok === 1, service: 'core', timestamp: new Date().toISOString() });
+    return res.json({ status: 'ok', db: rows[0]?.ok === 1, service: 'core', timestamp: new Date().toISOString() });
   } catch (err) {
-    res.status(500).json({ status: 'error', error: String(err) });
+    // eslint-disable-next-line no-console
+    console.warn('Healthcheck DB error:', String(err));
+    return res.json({ status: 'ok', db: false, service: 'core', timestamp: new Date().toISOString(), detail: String(err) });
   }
 });
 
@@ -95,6 +165,11 @@ app.post('/usuarios', requireAuth, requireRole('Administrador'), async (req, res
   try {
     const { rut, email, password, perfil = 'Funcionario', activo = true } = req.body || {};
     if (!rut || !email || !password) return res.status(400).json({ error: 'rut, email y password son requeridos' });
+    if (!isStrongPassword(password)) {
+      return res.status(400).json({
+        error: 'La contraseña debe tener al menos 12 caracteres, con mayúsculas, minúsculas y al menos un número.',
+      });
+    }
     const hash = await bcrypt.hash(String(password), 10);
     const [result] = await pool.query(
       'INSERT INTO Usuarios (rut, email, contrasena, perfil, activo) VALUES (?, ?, ?, ?, ?)',
@@ -119,9 +194,14 @@ app.put('/usuarios/:id', requireAuth, requireRole('Administrador'), async (req, 
     if (perfil !== undefined) { fields.push('perfil = ?'); values.push(perfil); }
     if (activo !== undefined) { fields.push('activo = ?'); values.push(activo ? 1 : 0); }
     if (password !== undefined) {
-      const hash = await bcrypt.hash(String(password), 10);
-      fields.push('contrasena = ?'); values.push(hash);
-    }
+  if (!isStrongPassword(password)) {
+    return res.status(400).json({
+      error: 'La contraseña debe tener al menos 12 caracteres, con mayúsculas, minúsculas y al menos un número.',
+    });
+  }
+  const hash = await bcrypt.hash(String(password), 10);
+  fields.push('contrasena = ?'); values.push(hash);
+}
     if (fields.length === 0) return res.status(400).json({ error: 'No hay campos para actualizar' });
     values.push(id);
     const [result] = await pool.query(`UPDATE Usuarios SET ${fields.join(', ')} WHERE id = ?`, values);

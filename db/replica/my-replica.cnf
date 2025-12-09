@@ -1,17 +1,55 @@
 [mysqld]
+# Configuración de identificación
 server-id = 2
+
+# Configuración de logs
 log_bin = mysql-bin
+binlog_format = ROW
+expire_logs_days = 10
+max_binlog_size = 100M
+log_error = /var/log/mysql/error.log
+slow_query_log = 1
+slow_query_log_file = /var/log/mysql/mysql-slow.log
+long_query_time = 2
+log_queries_not_using_indexes = 1
+
+# Configuración de replicación
 relay_log = mysql-relay-bin
 read_only = 1
-binlog_format = ROW
-
-innodb_buffer_pool_size = 256M
-max_connections = 200
-character-set-server = utf8mb4
-collation-server = utf8mb4_unicode_ci
 log_slave_updates = ON
 gtid_strict_mode = ON
 gtid_domain_id = 2
 auto_increment_increment = 2
 auto_increment_offset = 2
 log-basename = mysql-replica
+
+# Configuración de seguridad
+skip_name_resolve = 1
+local_infile = 0
+skip_symbolic_links = 1
+skip_show_database
+
+# Configuración de autenticación
+default_authentication_plugin = mysql_native_password
+
+# Configuración de conexiones
+max_connections = 200
+max_user_connections = 180
+max_connect_errors = 5
+wait_timeout = 300
+interactive_timeout = 300
+
+# Configuración de InnoDB
+innodb_buffer_pool_size = 256M
+innodb_flush_log_at_trx_commit = 1
+innodb_flush_method = O_DIRECT
+innodb_file_per_table = 1
+
+# Configuración de caracteres
+character-set-server = utf8mb4
+collation-server = utf8mb4_unicode_ci
+
+# Optimizaciones para réplica
+slave_parallel_workers = 4
+slave_parallel_max_queued = 16M
+slave_parallel_mode = 'optimistic'
