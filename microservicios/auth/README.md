@@ -107,3 +107,5 @@ Cuando ejecute `docker compose up`, los secretos declarados se montarán en los 
 Notas:
 - El servicio `auth` lee `JWT_SECRET` de `process.env.JWT_SECRET` o de `/run/secrets/jwt_secret` (preferido para producción).
 - Para producción, utilice un gestor de secretos adecuado o secretos de Docker Swarm/Kubernetes en lugar de comprometer archivos secretos en disco.
+
+

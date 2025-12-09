@@ -45,7 +45,3 @@ Contraseñas:
 - Admin: 
     user: 12345678-9
     contraseña: password
-- Funcionario:
-    user: 11111111-1
-    contraseña: password
-
