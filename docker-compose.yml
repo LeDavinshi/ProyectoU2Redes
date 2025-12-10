@@ -316,26 +316,6 @@ services:
     restart: unless-stopped
     privileged: true
 
-
-  documentacion:
-    build: ./microservicios/documentacion
-    container_name: documentacion-service
-    ports:
-      - "4100:4100"
-    environment:
-      - NODE_ENV=production
-      - PORT=4100
-      - DB_HOST=${DB_HOST:-mysql-master}
-      - DB_PORT=${DB_PORT:-3306}
-      - DB_USER=${DB_USER:-admin}
-      - DB_PASSWORD=${DB_PASSWORD:-admin123}
-      - DB_NAME=${DB_NAME:-gestion_personal}
-      - DOCS_TABLE=${DOCS_TABLE:-documentos}
-    restart: unless-stopped
-    networks:
-      - app-net
-      - mysql-network
-
 networks:
   app-net:
     driver: bridge
